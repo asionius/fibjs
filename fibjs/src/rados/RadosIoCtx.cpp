@@ -8,6 +8,7 @@
 #include "object.h"
 #include "RadosIoCtx.h"
 #include "RadosStream.h"
+#include "RbeImage.h"
 #include "List.h"
 
 #ifndef _WIN32
@@ -145,7 +146,6 @@ static inline int32_t load_librbd(void) {
 
 	if (!_rbd_create3
 	        || !_rbd_create2
-	        || !_rbd_open
 	        || !_rbd_stat
 	        || !_rbd_close
 	        || !_rbd_resize
@@ -305,7 +305,7 @@ result_t RadosIoCtx::version(exlib::string& retVal)
 	int32_t maj, min, extra;
 
 	_rbd_version(&maj, &min, &extra);
-	sprintf("%d.%d.%d", maj, min, extra);
+	sprintf(version, "%d.%d.%d", maj, min, extra);
 
 	retVal = version;
 

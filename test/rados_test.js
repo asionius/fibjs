@@ -11,12 +11,13 @@ var win = os.type() == "Windows";
 var ceph_cluster = 'ceph';
 var ceph_username = 'client.admin';
 var ceph_config = '/etc/ceph/ceph.conf';
-var radosCluster, radosIoctx, radosStream;
-var poolN = "radospool";
-var oid = "foo";
-var snapshot = "s";
 
 describe('rados', () => {
+	var radosCluster, radosIoctx, radosStream;
+	var poolN = "radospool";
+	var oid = "foo";
+	var snapshot = "s";
+
 	it('create cluster', () => {
 		if (win) return;
 		try {
@@ -284,6 +285,218 @@ describe('rados', () => {
 			radosCluster.shutdown();
 		})
 	});
+});
+
+describe('rbd', () => {
+	var radosCluster, radosIoctx, rbdImage;
+	var imgName = "image";
+	var imgName2 = "image2";
+	var poolName = "rbdpool";
+	var poolName2 = "rbdpool2";
+
+	before(() => {
+		if (win) return;
+		try {
+			radosCluster = new rados.Rados(ceph_cluster, ceph_username, ceph_config);
+			radosCluster.connect();
+			radosCluster.createPool(poolName);
+			radosCluster.createPool(poolName2);
+			radosIoctx = radosCluster.createIoCtx(poolName);
+		} catch (e) {
+			radosCluster = null;
+			console.error(e.toString());
+		}
+	});
+
+	after(() => {
+		if (win) return;
+		if (!radosCluster) return;
+		radosIoctx.destroy();
+		radosCluster.deletePool(poolName);
+		radosCluster.deletePool(poolName2);
+		radosCluster.shutdown();
+	});
+
+	it('version', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.ok(/\d+\.\d+\.\d+/.test(radosIoctx.version()));
+	});
+
+	it('createImage', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.doesNotThrow(() => {
+			radosIoctx.createImage(imgName, 1024);
+		})
+		assert.ok(radosIoctx.listImages().indexOf(imgName) > -1)
+	});
+
+	it('cloneImage', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		var ctx = radosCluster.createIoCtx(poolName2);
+		assert.doesNotThrow(() => {
+			radosIoctx.cloneImage(imgName, '', ctx, imgName2);
+		})
+		assert.ok(ctx.listImages().indexOf(imgName2) > -1);
+		ctx.destroy();
+	});
+
+	it('removeImage', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		var ctx = radosCluster.createIoCtx(poolName2);
+		assert.doesNotThrow(() => {
+			ctx.removeImage(imgName2);
+		})
+		assert.ok(ctx.listImages().length == 0);
+		ctx.destroy();
+	});
+
+	it('renameImage', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		radosIoctx.renameImage(imgName, imgName2);
+		assert.ok(radosIoctx.listImages().indexOf(imgName) < 0);
+		assert.ok(radosIoctx.listImages().indexOf(imgName2) > -1);
+	});
+
+	it('listImages', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.equal(radosIoctx.listImages().length, 1);
+	});
+
+	it('openImage', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.doesNotThrow(() => {
+			rbdImage = radosIoctx.openImage(imgName2);
+		})
+	});
+
+	it('write', () => {
+		if (win) return;
+		if (!radosCluster) return;
+
+		var arr = [];
+		for (var i = 0; i < 1024; i++) {
+			var k = i % 4;
+			arr.push(0x31 + k);
+		}
+		var buf = new Buffer(arr);
+		assert.doesNotThrow(() => {
+			rbdImage.write(buf);
+		});
+	});
+
+	it('seek & read', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		var arr = [];
+		for (var i = 0; i < 1024; i++) {
+			var k = i % 4;
+			arr.push(0x31 + k);
+		}
+		var buf = new Buffer(arr);
+		rbdImage.seek(0, fs.SEEK_SET);
+
+		assert.equal(rbdImage.read(1024).toString(), buf.toString());
+	});
+
+	it('size & readAll', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		var size = rbdImage.size();
+		rbdImage.seek(4, fs.SEEK_END);
+		rbdImage.write("1234");
+		rbdImage.seek(4, fs.SEEK_END);
+		assert.equal(rbdImage.readAll().toString(), "1234");
+	});
+
+	it('copyTo', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		var stm = new require('io').MemoryStream();
+		rbdImage.seek(4, fs.SEEK_END);
+		rbdImage.copyTo(stm);
+		stm.rewind();
+		assert.equal(stm.readAll().toString(), "1234");
+	});
+
+	it('tell & rewind', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.seek(0, fs.SEEK_END);
+		assert.equal(1024 * 1024 * 1024, rbdImage.tell());
+		rbdImage.rewind();
+		assert.equal(0, rbdImage.tell());
+	});
+
+	it('stat', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		var stat = rbdImage.stat();
+		var size = rbdImage.size();
+		assert.equal(size, stat.size);
+	});
+
+	it('resize', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.resize(2048);
+		assert.equal(2048 * 1024 * 1024, rbdImage.size());
+		rbdImage.resize(512);
+		assert.equal(512 * 1024 * 1024, rbdImage.size());
+	});
+
+	it('get_stripe_unit', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.ok(typeof rbdImage.get_stripe_unit(), "number");
+	});
+
+	it('get_stripe_count', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.ok(typeof rbdImage.get_stripe_count(), "number");
+	});
+
+	it('get_features', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.ok(typeof rbdImage.get_features(), "number");
+	});
+
+	it('get_create_timestamp', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.ok(typeof rbdImage.get_create_timestamp(), "object");
+	});
+
+	it('get_block_name_prefix', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.ok(typeof rbdImage.get_block_name_prefix(), "string");
+	});
+
+	it('flush', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.doesNotThrow(() => {
+			rbdImage.flush();
+		})
+	});
+
+	it('close', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.doesNotThrow(() => {
+			rbdImage.close();
+		})
+	});
+
 });
 
 // test.run(console.DEBUG);

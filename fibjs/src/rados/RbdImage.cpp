@@ -258,9 +258,12 @@ result_t RbdImage::read(int32_t bytes, obj_ptr<Buffer_base>& retVal, AsyncEvent*
 
 	if (lbytes < 0)
 	{
-		hr = _rbd_get_size(m_image, &lbytes);
+		uint64_t bytes;
+		hr = _rbd_get_size(m_image, &bytes);
 		if (hr < 0)
 			return CHECK_ERROR(hr);
+
+		lbytes = bytes;
 	}
 
 	return (new asyncRead(lbytes, retVal, this, ac, m_lockRead))->call();
@@ -271,7 +274,7 @@ result_t RbdImage::write(Buffer_base* data, AsyncEvent* ac)
 	class  asyncWrite: public asyncRbdCallback
 	{
 	public:
-		asyncWrite(exlib::string data, RbdStream *pThis,
+		asyncWrite(exlib::string data, RbdImage *pThis,
 		           AsyncEvent* ac, exlib::Locker& locker)
 			: asyncRbdCallback(pThis, ac, locker)
 			, m_data(data)
@@ -369,7 +372,7 @@ result_t RbdImage::copyTo(Stream_base* stm, int64_t bytes, int64_t& retVal, Asyn
 result_t RbdImage::seek(int64_t offset, int32_t whence)
 {
 	result_t hr;
-	int64_t size;
+	uint64_t size;
 
 	hr = _rbd_get_size(m_image, &size);
 	if (hr < 0)
@@ -408,6 +411,7 @@ result_t RbdImage::rewind()
 result_t RbdImage::size(int64_t& retVal)
 {
 	int64_t size;
+	result_t hr;
 
 	hr = _rbd_get_size(m_image, &size);
 	if (hr < 0)
@@ -455,7 +459,7 @@ result_t RbdImage::get_size(int64_t& retVal)
 
 result_t RbdImage::get_stripe_unit(int64_t& retVal)
 {
-	int64_t unit;
+	uint64_t unit;
 	result_t hr;
 
 	hr = _rbd_get_stripe_unit(m_image, &unit);
@@ -468,7 +472,7 @@ result_t RbdImage::get_stripe_unit(int64_t& retVal)
 
 result_t RbdImage::get_stripe_count(int64_t& retVal)
 {
-	int64_t cnt;
+	uint64_t cnt;
 	result_t hr;
 
 	hr = _rbd_get_stripe_unit(m_image, &cnt);
@@ -481,7 +485,7 @@ result_t RbdImage::get_stripe_count(int64_t& retVal)
 
 result_t RbdImage::get_features(int64_t& retVal)
 {
-	int64_t features;
+	uint64_t features;
 	result_t hr;
 
 	hr = _rbd_get_stripe_unit(m_image, &features);
@@ -542,11 +546,10 @@ result_t RbdImage::flush(AsyncEvent* ac)
 	class asyncFlush: public asyncRbdCallback
 	{
 	public:
-		asyncFlush(RbdStream *pThis, AsyncEvent* ac, exlib::Locker& locker)
+		asyncFlush(RbdImage *pThis, AsyncEvent* ac, exlib::Locker& locker)
 			: asyncRbdCallback(pThis, ac, locker)
 		{
 		}
-		~asyncFlush();
 
 	public:
 		virtual result_t process()
@@ -563,7 +566,7 @@ result_t RbdImage::flush(AsyncEvent* ac)
 
 			return CALL_E_PENDDING;
 		}
-		virtual result_t proc()
+		virtual void proc()
 		{
 			result_t hr;
 
