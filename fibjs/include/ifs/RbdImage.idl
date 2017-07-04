@@ -1,0 +1,42 @@
+/*! @brief rbd image对象，用于读写rbd image
+
+ rbd image对象,用于对rbd image进行操作，可使用 RadosIoCtx 对象创建
+ @code
+ var rados = require('rados');
+ var cluster = new rados.Rados('clusterName', 'userName', '/path/to/myceph.conf');
+ cluster.connect();
+ var io = cluster.createIoCtx('poolName');
+ io.createImage("myImage");
+ var image = io.openImage('myImage');
+ image.write('hello key');
+ console.log(image.readAll().toString());
+ @endcode
+ */
+interface RbdImage : SeekableStream
+{
+    /*! @brief 查询镜像大小 */
+    readonly Long size;
+
+    /*! @brief 查询条纹大小 */
+    readonly Long stripe_unit;
+
+    /*! @brief 查询连续写入条纹个数 */
+    readonly Long stripe_count;
+
+    /*! @brief 查询镜像的feature */
+    readonly Long features;
+
+    /*! @brief 查询镜像的feature */
+    readonly Date create_timestamp;
+
+    /*! @brief 查询镜像在pool中全称的前缀 */
+    readonly String block_name_prefix;
+
+    /*! @brief 修改rbd image大小
+      @param bytes 修改后的大小
+     */
+    resize(Long bytes) async;
+
+    /*! @brief 阻塞直到将文件缓冲区内容写入物理设备 */
+    flush() async;
+};

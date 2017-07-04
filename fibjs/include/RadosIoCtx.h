@@ -1,5 +1,6 @@
 #include "ifs/RadosIoCtx.h"
 #include <rados/librados.h>
+#include <rados/librbd.h>
 
 #ifndef _fj_RADOSIOCTX_H
 #define _fj_RADOSIOCTX_H
@@ -16,6 +17,13 @@ public:
 
 public:
     // RadosIoCtx_base
+    virtual result_t createImage(exlib::string name, int64_t size, int64_t stripe_unit, int64_t stripe_count);
+    virtual result_t cloneImage(exlib::string pName, exlib::string pSnapshot, RadosIoCtx_base* dstio, exlib::string cName, int64_t stripe_unit, int32_t stripe_count);
+    virtual result_t removeImage(exlib::string name);
+    virtual result_t renameImage(exlib::string src, exlib::string dst);
+    virtual result_t listImages(obj_ptr<List_base>& retVal);
+    virtual result_t openImage(exlib::string name, exlib::string snapshot, obj_ptr<RbdImage_base>& retVal);
+    virtual result_t version(exlib::string& retVal);
     virtual result_t open(exlib::string key, obj_ptr<RadosStream_base>& retVal);
     virtual result_t remove(exlib::string key, AsyncEvent* ac);
     virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac);

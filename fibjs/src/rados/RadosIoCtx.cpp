@@ -18,9 +18,17 @@ namespace fibjs {
 #ifndef _WIN32
 
 #define MAX_XATTRLEN 4096
+
 extern void* get_librados_handle(void);
+static void* s_handle = NULL;
+static bool s_ldlib = false;
+void* get_librbd_handle(void)
+{
+	return s_handle;
+}
+
 static void (*_rados_ioctx_destroy)(rados_ioctx_t );
-static int (*_rados_ioctx_create)(rados_t , const char *, rados_ioctx_t *);
+static int (*_rados_ioctx_create)(rados_t, const char *, rados_ioctx_t *);
 static int (*_rados_ioctx_snap_create)(rados_ioctx_t, const char *);
 static int (*_rados_ioctx_snap_remove)(rados_ioctx_t, const char *);
 static int (*_rados_ioctx_snap_rollback)(rados_ioctx_t, const char *, const char *);
@@ -33,6 +41,26 @@ static int (*_rados_rmxattr)(rados_ioctx_t, const char *, const char *);
 static int (*_rados_getxattrs)(rados_ioctx_t, const char *, rados_xattrs_iter_t *);
 static int (*_rados_getxattrs_next)(rados_xattrs_iter_t, const char **, const char **, size_t *);
 static void (*_rados_getxattrs_end)(rados_xattrs_iter_t);
+
+static int (*_rbd_create3)(rados_ioctx_t, const char *, uint64_t,
+                           uint64_t, int *,
+                           uint64_t, uint64_t);
+static int (*_rbd_create2)(rados_ioctx_t, const char *, uint64_t,
+                           uint64_t, int *);
+static int (*_rbd_stat)(rbd_image_t, rbd_image_info_t *, size_t);
+static int (*_rbd_close)(rbd_image_t);
+static int (*_rbd_resize)(rbd_image_t, uint64_t);
+static int (*_rbd_rename)(rados_ioctx_t, const char *, const char *);
+static int (*_rbd_remove)(rados_ioctx_t io, const char *name);
+static int (*_rbd_list)(rados_ioctx_t, char *, size_t *);
+static int (*_rbd_clone2)(rados_ioctx_t, const char *,
+                          const char *, rados_ioctx_t ,
+                          const char *, uint64_t, int *,
+                          uint64_t, int);
+static int (*_rbd_clone)(rados_ioctx_t, const char *,
+                         const char *, rados_ioctx_t ,
+                         const char *, uint64_t, int *);
+static void (*_rbd_version)(int *, int *, int *);
 
 static inline int32_t load_librados(void) {
 	static bool ldlib = false;
@@ -75,6 +103,211 @@ static inline int32_t load_librados(void) {
 	        || !_rados_getxattrs_next
 	        || !_rados_getxattrs_end)
 		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
+
+	return 0;
+}
+
+static inline int32_t load_librbd(void) {
+	if (s_ldlib)
+		return 0;
+
+	s_ldlib = true;
+	s_handle = dlopen("librbd.so", RTLD_LAZY);
+	if (!s_handle)
+		return CHECK_ERROR(CALL_E_CANNOTLOADLIBRARY);
+
+	_rbd_create3 = (int(*)(rados_ioctx_t, const char *,
+	                       uint64_t, uint64_t,
+	                       int *, uint64_t, uint64_t))dlsym(s_handle, "rbd_create3");
+	_rbd_create2 = (int(*)(rados_ioctx_t, const char *,
+	                       uint64_t, uint64_t,
+	                       int *))dlsym(s_handle, "rbd_create2");
+	_rbd_stat = (int(*)(rbd_image_t, rbd_image_info_t *,
+	                    size_t))dlsym(s_handle, "rbd_stat");
+	_rbd_close = (int(*)(rbd_image_t))dlsym(s_handle, "rbd_close");
+	_rbd_resize = (int(*)(rbd_image_t, uint64_t))dlsym(s_handle, "rbd_resize");
+	_rbd_rename = (int(*)(rados_ioctx_t, const char *,
+	                      const char *))dlsym(s_handle, "rbd_rename");
+	_rbd_remove = (int(*)(rados_ioctx_t io, const char *name))dlsym(s_handle, "rbd_remove");
+	_rbd_list = (int(*)(rados_ioctx_t, char *,
+	                    size_t *))dlsym(s_handle, "rbd_list");
+	_rbd_clone2 = (int(*)(rados_ioctx_t, const char *,
+	                      const char *, rados_ioctx_t ,
+	                      const char *, uint64_t,
+	                      int *, uint64_t,
+	                      int))dlsym(s_handle, "rbd_clone2");
+	_rbd_clone = (int(*)(rados_ioctx_t, const char *,
+	                     const char *, rados_ioctx_t ,
+	                     const char *, uint64_t,
+	                     int *))dlsym(s_handle, "rbd_clone");
+	_rbd_version = (void(*)(int *, int *,
+	                        int *))dlsym(s_handle, "rbd_version");
+
+	if (!_rbd_create3
+	        || !_rbd_create2
+	        || !_rbd_open
+	        || !_rbd_stat
+	        || !_rbd_close
+	        || !_rbd_resize
+	        || !_rbd_rename
+	        || !_rbd_remove
+	        || !_rbd_list
+	        || !_rbd_clone2
+	        || !_rbd_version)
+		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
+
+	return 0;
+}
+
+result_t RadosIoCtx::createImage(exlib::string name, int64_t size, int64_t stripe_unit, int64_t stripe_count)
+{
+	result_t hr;
+	int32_t order;
+
+	hr = load_librbd();
+	if (hr < 0)
+		return hr;
+
+	if (stripe_unit < 0)
+		hr = _rbd_create2(m_ioctx, name.c_str(),
+		                  size, RBD_FEATURES_ALL, &order);
+	else
+		hr = _rbd_create3(m_ioctx, name.c_str(),
+		                  size, RBD_FEATURES_ALL,
+		                  &order, stripe_unit, stripe_count);
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RadosIoCtx::cloneImage(exlib::string pName, exlib::string pSnapshot, RadosIoCtx_base* dstio, exlib::string cName, int64_t stripe_unit, int32_t stripe_count)
+{
+	result_t hr;
+	int32_t order;
+
+	hr = load_librbd();
+	if (hr < 0)
+		return hr;
+
+	RadosIoCtx* dio = (RadosIoCtx*)dstio;
+	if (stripe_unit < 0)
+		hr = _rbd_clone(m_ioctx, pName.c_str(),
+		                pSnapshot.c_str(), dio->m_ioctx,
+		                cName.c_str(), RBD_FEATURES_ALL, &order);
+	else
+		hr = _rbd_clone2(m_ioctx, pName.c_str(),
+		                 pSnapshot.c_str(), dio->m_ioctx,
+		                 cName.c_str(), RBD_FEATURES_ALL,
+		                 &order, stripe_unit, stripe_count);
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RadosIoCtx::removeImage(exlib::string name)
+{
+	result_t hr;
+
+	hr = load_librbd();
+	if (hr < 0)
+		return hr;
+
+	hr = _rbd_remove(m_ioctx, name.c_str());
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RadosIoCtx::renameImage(exlib::string src, exlib::string dst)
+{
+	result_t hr;
+
+	hr = load_librbd();
+	if (hr < 0)
+		return hr;
+
+	hr = _rbd_rename(m_ioctx, src.c_str(), dst.c_str());
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RadosIoCtx::listImages(obj_ptr<List_base>& retVal)
+{
+	result_t hr;
+
+	hr = load_librbd();
+	if (hr < 0)
+		return hr;
+
+	size_t max_size = 1024;
+	exlib::string strBuf, strBuf1;
+
+	strBuf.resize(max_size);
+	char *names = &strBuf[0];
+	char *cur_name;
+	int32_t i = 0;
+	obj_ptr<List> data = new List();
+
+	hr = _rbd_list(m_ioctx, names, &max_size);
+	if (hr < 0)
+	{
+		if (hr != -ERANGE)
+			return CHECK_ERROR(hr);
+
+		strBuf.resize(max_size);
+		names = &strBuf[0];
+		hr = _rbd_list(m_ioctx, names, &max_size);
+		if (hr < 0)
+			return CHECK_ERROR(hr);
+	}
+
+	for (i = 0, cur_name = names; cur_name < names + hr; i++) {
+		strBuf1 = cur_name;
+		data->append(strBuf1);
+	}
+	retVal = data;
+
+	return 0;
+}
+
+result_t RadosIoCtx::openImage(exlib::string name, exlib::string snapshot, obj_ptr<RbdImage_base>& retVal)
+{
+	result_t hr;
+
+	hr = load_librbd();
+	if (hr < 0)
+		return hr;
+
+	obj_ptr<RbdImage> img = new RbdImage();
+
+	hr = img->open(m_ioctx, name, snapshot);
+	if (hr < 0)
+		return hr;
+
+	retVal = img;
+	return 0;
+}
+
+result_t RadosIoCtx::version(exlib::string& retVal)
+{
+	result_t hr;
+
+	hr = load_librbd();
+	if (hr < 0)
+		return hr;
+
+	char version[12] = {0};
+	int32_t maj, min, extra;
+
+	_rbd_version(&maj, &min, &extra);
+	sprintf("%d.%d.%d", maj, min, extra);
+
+	retVal = version;
 
 	return 0;
 }
@@ -328,6 +561,35 @@ RadosIoCtx::~RadosIoCtx()
 }
 
 #else
+result_t RadosIoCtx::createImage(exlib::string name, int64_t size, int32_t stripe_unit, int32_t stripe_count)
+{
+	return 0;
+}
+
+result_t RadosIoCtx::cloneImage(exlib::string pName, exlib::string pSnapshot, RadosIoCtx_base* dstio, exlib::string cName, int64_t stripe_unit, int32_t stripe_count)
+{
+	return 0;
+}
+result_t RadosIoCtx::removeImage(exlib::string name)
+{
+	return 0;
+}
+result_t RadosIoCtx::renameImage(exlib::string src, exlib::string dst)
+{
+	return 0;
+}
+result_t RadosIoCtx::listImages(obj_ptr<List_base>& retVal)
+{
+	return 0;
+}
+result_t RadosIoCtx::openImage(exlib::string name, exlib::string snapshot, obj_ptr<RbdImage_base>& retVal)
+{
+	return 0;
+}
+result_t RadosIoCtx::version(exlib::string& retVal)
+{
+	return 0;
+}
 result_t RadosIoCtx::open(exlib::string key, obj_ptr<RadosStream_base>& retVal)
 {
 	return 0;

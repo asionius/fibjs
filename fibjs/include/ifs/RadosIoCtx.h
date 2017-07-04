@@ -16,8 +16,9 @@
 
 namespace fibjs {
 
-class RadosStream_base;
 class List_base;
+class RbdImage_base;
+class RadosStream_base;
 class Regex_base;
 
 class RadosIoCtx_base : public object_base {
@@ -25,6 +26,13 @@ class RadosIoCtx_base : public object_base {
 
 public:
     // RadosIoCtx_base
+    virtual result_t createImage(exlib::string name, int64_t size, int64_t stripe_unit, int64_t stripe_count) = 0;
+    virtual result_t cloneImage(exlib::string pName, exlib::string pSnapshot, RadosIoCtx_base* dstio, exlib::string cName, int64_t stripe_unit, int32_t stripe_count) = 0;
+    virtual result_t removeImage(exlib::string name) = 0;
+    virtual result_t renameImage(exlib::string src, exlib::string dst) = 0;
+    virtual result_t listImages(obj_ptr<List_base>& retVal) = 0;
+    virtual result_t openImage(exlib::string name, exlib::string snapshot, obj_ptr<RbdImage_base>& retVal) = 0;
+    virtual result_t version(exlib::string& retVal) = 0;
     virtual result_t open(exlib::string key, obj_ptr<RadosStream_base>& retVal) = 0;
     virtual result_t remove(exlib::string key, AsyncEvent* ac) = 0;
     virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac) = 0;
@@ -50,6 +58,13 @@ public:
     }
 
 public:
+    static void s_createImage(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_cloneImage(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_removeImage(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_renameImage(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_listImages(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_openImage(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_version(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_open(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_remove(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_createSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -77,14 +92,22 @@ public:
 };
 }
 
-#include "RadosStream.h"
 #include "List.h"
+#include "RbdImage.h"
+#include "RadosStream.h"
 #include "Regex.h"
 
 namespace fibjs {
 inline ClassInfo& RadosIoCtx_base::class_info()
 {
     static ClassData::ClassMethod s_method[] = {
+        { "createImage", s_createImage, false },
+        { "cloneImage", s_cloneImage, false },
+        { "removeImage", s_removeImage, false },
+        { "renameImage", s_renameImage, false },
+        { "listImages", s_listImages, false },
+        { "openImage", s_openImage, false },
+        { "version", s_version, false },
         { "open", s_open, false },
         { "remove", s_remove, false },
         { "createSnap", s_createSnap, false },
@@ -106,6 +129,116 @@ inline ClassInfo& RadosIoCtx_base::class_info()
 
     static ClassInfo s_ci(s_cd);
     return s_ci;
+}
+
+inline void RadosIoCtx_base::s_createImage(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RadosIoCtx_base);
+    METHOD_ENTER();
+
+    METHOD_OVER(4, 2);
+
+    ARG(exlib::string, 0);
+    ARG(int64_t, 1);
+    OPT_ARG(int64_t, 2, -1);
+    OPT_ARG(int64_t, 3, 1);
+
+    hr = pInst->createImage(v0, v1, v2, v3);
+
+    METHOD_VOID();
+}
+
+inline void RadosIoCtx_base::s_cloneImage(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RadosIoCtx_base);
+    METHOD_ENTER();
+
+    METHOD_OVER(6, 4);
+
+    ARG(exlib::string, 0);
+    ARG(exlib::string, 1);
+    ARG(obj_ptr<RadosIoCtx_base>, 2);
+    ARG(exlib::string, 3);
+    OPT_ARG(int64_t, 4, -1);
+    OPT_ARG(int32_t, 5, 0);
+
+    hr = pInst->cloneImage(v0, v1, v2, v3, v4, v5);
+
+    METHOD_VOID();
+}
+
+inline void RadosIoCtx_base::s_removeImage(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RadosIoCtx_base);
+    METHOD_ENTER();
+
+    METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
+
+    hr = pInst->removeImage(v0);
+
+    METHOD_VOID();
+}
+
+inline void RadosIoCtx_base::s_renameImage(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RadosIoCtx_base);
+    METHOD_ENTER();
+
+    METHOD_OVER(2, 2);
+
+    ARG(exlib::string, 0);
+    ARG(exlib::string, 1);
+
+    hr = pInst->renameImage(v0, v1);
+
+    METHOD_VOID();
+}
+
+inline void RadosIoCtx_base::s_listImages(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    obj_ptr<List_base> vr;
+
+    METHOD_INSTANCE(RadosIoCtx_base);
+    METHOD_ENTER();
+
+    METHOD_OVER(0, 0);
+
+    hr = pInst->listImages(vr);
+
+    METHOD_RETURN();
+}
+
+inline void RadosIoCtx_base::s_openImage(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    obj_ptr<RbdImage_base> vr;
+
+    METHOD_INSTANCE(RadosIoCtx_base);
+    METHOD_ENTER();
+
+    METHOD_OVER(2, 1);
+
+    ARG(exlib::string, 0);
+    OPT_ARG(exlib::string, 1, "");
+
+    hr = pInst->openImage(v0, v1, vr);
+
+    METHOD_RETURN();
+}
+
+inline void RadosIoCtx_base::s_version(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    exlib::string vr;
+
+    METHOD_INSTANCE(RadosIoCtx_base);
+    METHOD_ENTER();
+
+    METHOD_OVER(0, 0);
+
+    hr = pInst->version(vr);
+
+    METHOD_RETURN();
 }
 
 inline void RadosIoCtx_base::s_open(const v8::FunctionCallbackInfo<v8::Value>& args)
