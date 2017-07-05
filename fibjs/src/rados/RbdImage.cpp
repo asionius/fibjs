@@ -9,6 +9,7 @@
 #include "RbdImage.h"
 #include "Stat.h"
 #include "Buffer.h"
+#include "List.h"
 #include <exlib/include/fiber.h>
 
 #ifndef _WIN32
@@ -93,33 +94,6 @@ static inline int32_t load_librbd(void)
 	_rbd_snap_unprotect = (int(*)(rbd_image_t, const char *)) dlsym(handle, "rbd_snap_unprotect");
 	_rbd_snap_is_protected = (int(*)(rbd_image_t, const char *, int *)) dlsym(handle, "rbd_snap_is_protected");
 	_rbd_snap_set = (int(*)(rbd_image_t, const char *)) dlsym(handle, "rbd_snap_set");
-
-	if (!_rbd_open
-	        || !_rbd_close
-	        || !_rbd_resize
-	        || !_rbd_stat
-	        || !_rbd_get_size
-	        || !_rbd_get_features
-	        || !_rbd_get_stripe_unit
-	        || !_rbd_get_stripe_count
-	        || !_rbd_get_create_timestamp
-	        || !_rbd_get_block_name_prefix
-	        || !_rbd_copy2
-	        || !_rbd_aio_write
-	        || !_rbd_aio_read
-	        || !_rbd_aio_create_completion
-	        || !_rbd_aio_get_return_value
-	        || !_rbd_aio_release
-	        || !_rbd_aio_flush
-	        || !_rbd_snap_list
-	        || !_rbd_snap_create
-	        || !_rbd_snap_remove
-	        || !_rbd_snap_rollback
-	        || !_rbd_snap_protect
-	        || !_rbd_snap_unprotect
-	        || !_rbd_snap_is_protected
-	        || !_rbd_snap_set)
-		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
 
 	return 0;
 }
@@ -489,6 +463,9 @@ result_t RbdImage::get_stripe_unit(int64_t& retVal)
 	uint64_t unit;
 	result_t hr;
 
+	if (!_rbd_get_stripe_unit)
+		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
+
 	hr = _rbd_get_stripe_unit(m_image, &unit);
 	if (hr < 0)
 		return CHECK_ERROR(hr);
@@ -501,6 +478,9 @@ result_t RbdImage::get_stripe_count(int64_t& retVal)
 {
 	uint64_t cnt;
 	result_t hr;
+
+	if (!_rbd_get_stripe_unit)
+		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
 
 	hr = _rbd_get_stripe_unit(m_image, &cnt);
 	if (hr < 0)
@@ -515,7 +495,10 @@ result_t RbdImage::get_features(int64_t& retVal)
 	uint64_t features;
 	result_t hr;
 
-	hr = _rbd_get_stripe_unit(m_image, &features);
+	if (!_rbd_get_features)
+		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
+
+	hr = _rbd_get_features(m_image, &features);
 	if (hr < 0)
 		return CHECK_ERROR(hr);
 
@@ -527,6 +510,9 @@ result_t RbdImage::get_create_timestamp(date_t& retVal)
 {
 	result_t hr;
 	struct timespec tm;
+
+	if (!_rbd_get_create_timestamp)
+		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
 
 	hr = _rbd_get_create_timestamp(m_image, &tm);
 	if (hr < 0)
@@ -542,6 +528,9 @@ result_t RbdImage::get_block_name_prefix(exlib::string& retVal)
 
 	exlib::string name;
 	char* p;
+
+	if (!_rbd_get_block_name_prefix)
+		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
 
 	name.resize(MAX_BLOCK_NAME_PREFIX);
 	p = &name[0];
@@ -695,7 +684,7 @@ result_t RbdImage::listSnaps(obj_ptr<List_base>& retVal, AsyncEvent* ac)
 	int32_t i;
 	rbd_snap_info_t snaps[max_size];
 	obj_ptr<List> data = new List();
-	exlib::string snapshot;
+	exlib::string snapname;
 
 	hr = _rbd_snap_list(m_image, snaps, &max_size);
 	if (hr < 0)
@@ -745,7 +734,7 @@ result_t RbdImage::setSnap(exlib::string snapname, AsyncEvent* ac)
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
-	const char *snap = snapshot.c_str();
+	const char *snap = snapname.c_str();
 
 	hr = _rbd_snap_set(m_image, snap[0] == '\0' ? NULL : snap);
 	if (hr < 0)
@@ -754,7 +743,7 @@ result_t RbdImage::setSnap(exlib::string snapname, AsyncEvent* ac)
 	return 0;
 }
 
-result_t RbdImage::isSnapProtected(bool& retVal, AsyncEvent* ac)
+result_t RbdImage::isSnapProtected(exlib::string snapname, bool& retVal, AsyncEvent* ac)
 {
 	if (!ac)
 		return CHECK_ERROR(CALL_E_NOSYNC);
@@ -850,11 +839,6 @@ result_t RbdImage::open(rados_ioctx_t io, exlib::string name, exlib::string snap
 }
 void RbdImage::close()
 {
-	if (!m_image)
-		return;
-
-	_rbd_close(m_image);
-	m_image = NULL;
 }
 
 result_t RbdImage::createSnap(exlib::string snapname, AsyncEvent* ac)
@@ -892,7 +876,7 @@ result_t RbdImage::setSnap(exlib::string snapname, AsyncEvent* ac)
 	return 0;
 }
 
-result_t RbdImage::isSnapProtected(bool& retVal, AsyncEvent* ac)
+result_t RbdImage::isSnapProtected(exlib::string snapname, bool& retVal, AsyncEvent* ac)
 {
 	return 0;
 }

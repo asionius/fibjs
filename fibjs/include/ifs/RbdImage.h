@@ -40,7 +40,7 @@ public:
     virtual result_t protectSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t unprotectSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t setSnap(exlib::string snapname, AsyncEvent* ac) = 0;
-    virtual result_t isSnapProtected(bool& retVal, AsyncEvent* ac) = 0;
+    virtual result_t isSnapProtected(exlib::string snapname, bool& retVal, AsyncEvent* ac) = 0;
 
 public:
     static void s__new(const v8::FunctionCallbackInfo<v8::Value>& args)
@@ -81,7 +81,7 @@ public:
     ASYNC_MEMBER1(RbdImage_base, protectSnap, exlib::string);
     ASYNC_MEMBER1(RbdImage_base, unprotectSnap, exlib::string);
     ASYNC_MEMBER1(RbdImage_base, setSnap, exlib::string);
-    ASYNC_MEMBERVALUE1(RbdImage_base, isSnapProtected, bool);
+    ASYNC_MEMBERVALUE2(RbdImage_base, isSnapProtected, exlib::string, bool);
 };
 }
 
@@ -361,13 +361,15 @@ inline void RbdImage_base::s_isSnapProtected(const v8::FunctionCallbackInfo<v8::
     METHOD_INSTANCE(RbdImage_base);
     METHOD_ENTER();
 
-    ASYNC_METHOD_OVER(0, 0);
+    ASYNC_METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
 
     if (!cb.IsEmpty()) {
-        pInst->acb_isSnapProtected(cb);
+        pInst->acb_isSnapProtected(v0, cb);
         hr = CALL_RETURN_NULL;
     } else
-        hr = pInst->ac_isSnapProtected(vr);
+        hr = pInst->ac_isSnapProtected(v0, vr);
 
     METHOD_RETURN();
 }

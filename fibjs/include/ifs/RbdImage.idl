@@ -76,7 +76,8 @@ interface RbdImage : SeekableStream
     setSnap(String snapname = "") async;
 
     /*! @brief 判断一个快照是否是不可删除的
+     @param snapname 快照名称
      @return true代表不可删除，false代表可以删除
      */
-    Boolean isSnapProtected() async;
+    Boolean isSnapProtected(String snapname) async;
 };

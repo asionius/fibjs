@@ -53,7 +53,7 @@ public:
     virtual result_t protectSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t unprotectSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t setSnap(exlib::string snapname, AsyncEvent* ac);
-    virtual result_t isSnapProtected(bool& retVal, AsyncEvent* ac);
+    virtual result_t isSnapProtected(exlib::string snapname, bool& retVal, AsyncEvent* ac);
 
 public:
     result_t open(rados_ioctx_t io, exlib::string name, exlib::string snapshot);
