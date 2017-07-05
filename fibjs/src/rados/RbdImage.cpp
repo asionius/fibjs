@@ -41,6 +41,16 @@ static ssize_t (*_rbd_aio_get_return_value)(rbd_completion_t);
 static void (*_rbd_aio_release)(rbd_completion_t);
 static int (*_rbd_aio_flush)(rbd_image_t, rbd_completion_t);
 
+static int (*_rbd_snap_list)(rbd_image_t, rbd_snap_info_t *, int *);
+static int (*_rbd_snap_create)(rbd_image_t, const char *);
+static int (*_rbd_snap_remove)(rbd_image_t, const char *);
+static int (*_rbd_snap_rollback)(rbd_image_t, const char *);
+static int (*_rbd_snap_protect)(rbd_image_t, const char *);
+static int (*_rbd_snap_unprotect)(rbd_image_t, const char *);
+static int (*_rbd_snap_is_protected)(rbd_image_t, const char *, int *);
+static int (*_rbd_snap_set)(rbd_image_t, const char *);
+
+
 static inline int32_t load_librbd(void)
 {
 	static bool ldlib = false;
@@ -75,6 +85,15 @@ static inline int32_t load_librbd(void)
 	_rbd_aio_release = (void(*)(rbd_completion_t))dlsym(handle, "rbd_aio_release");
 	_rbd_aio_flush = (int(*)(rbd_image_t, rbd_completion_t))dlsym(handle, "rbd_aio_flush");
 
+	_rbd_snap_list = (int(*)(rbd_image_t, rbd_snap_info_t *, int *)) dlsym(handle, "rbd_snap_list");
+	_rbd_snap_create = (int(*)(rbd_image_t, const char *)) dlsym(handle, "rbd_snap_create");
+	_rbd_snap_remove = (int(*)(rbd_image_t, const char *)) dlsym(handle, "rbd_snap_remove");
+	_rbd_snap_rollback = (int(*)(rbd_image_t, const char *)) dlsym(handle, "rbd_snap_rollback");
+	_rbd_snap_protect = (int(*)(rbd_image_t, const char *)) dlsym(handle, "rbd_snap_protect");
+	_rbd_snap_unprotect = (int(*)(rbd_image_t, const char *)) dlsym(handle, "rbd_snap_unprotect");
+	_rbd_snap_is_protected = (int(*)(rbd_image_t, const char *, int *)) dlsym(handle, "rbd_snap_is_protected");
+	_rbd_snap_set = (int(*)(rbd_image_t, const char *)) dlsym(handle, "rbd_snap_set");
+
 	if (!_rbd_open
 	        || !_rbd_close
 	        || !_rbd_resize
@@ -91,7 +110,15 @@ static inline int32_t load_librbd(void)
 	        || !_rbd_aio_create_completion
 	        || !_rbd_aio_get_return_value
 	        || !_rbd_aio_release
-	        || !_rbd_aio_flush)
+	        || !_rbd_aio_flush
+	        || !_rbd_snap_list
+	        || !_rbd_snap_create
+	        || !_rbd_snap_remove
+	        || !_rbd_snap_rollback
+	        || !_rbd_snap_protect
+	        || !_rbd_snap_unprotect
+	        || !_rbd_snap_is_protected
+	        || !_rbd_snap_set)
 		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
 
 	return 0;
@@ -410,7 +437,7 @@ result_t RbdImage::rewind()
 
 result_t RbdImage::size(int64_t& retVal)
 {
-	int64_t size;
+	uint64_t size;
 	result_t hr;
 
 	hr = _rbd_get_size(m_image, &size);
@@ -616,6 +643,134 @@ void RbdImage::close()
 	m_image = NULL;
 }
 
+result_t RbdImage::createSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	if (!ac)
+		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	result_t hr;
+
+	hr = _rbd_snap_create(m_image, snapname.c_str());
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RbdImage::removeSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	if (!ac)
+		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	result_t hr;
+
+	hr = _rbd_snap_remove(m_image, snapname.c_str());
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RbdImage::rollbackSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	if (!ac)
+		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	result_t hr;
+
+	hr = _rbd_snap_rollback(m_image, snapname.c_str());
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RbdImage::listSnaps(obj_ptr<List_base>& retVal, AsyncEvent* ac)
+{
+	if (!ac)
+		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	result_t hr;
+	int32_t max_size = 128;
+	int32_t i;
+	rbd_snap_info_t snaps[max_size];
+	obj_ptr<List> data = new List();
+	exlib::string snapshot;
+
+	hr = _rbd_snap_list(m_image, snaps, &max_size);
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	for (i = 0; i < hr; i++)
+	{
+		snapname = snaps[i].name;
+		data->append(snapname);
+	}
+	retVal = data;
+
+	return 0;
+}
+
+result_t RbdImage::protectSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	if (!ac)
+		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	result_t hr;
+
+	hr = _rbd_snap_protect(m_image, snapname.c_str());
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RbdImage::unprotectSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	if (!ac)
+		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	result_t hr;
+
+	hr = _rbd_snap_unprotect(m_image, snapname.c_str());
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RbdImage::setSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	if (!ac)
+		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	result_t hr;
+	const char *snap = snapshot.c_str();
+
+	hr = _rbd_snap_set(m_image, snap[0] == '\0' ? NULL : snap);
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	return 0;
+}
+
+result_t RbdImage::isSnapProtected(bool& retVal, AsyncEvent* ac)
+{
+	if (!ac)
+		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	result_t hr;
+	int32_t protect;
+
+	hr = _rbd_snap_is_protected(m_image, snapname.c_str(), &protect);
+	if (hr < 0)
+		return CHECK_ERROR(hr);
+
+	retVal = protect > 0;
+
+	return 0;
+}
+
 #else
 result_t RbdImage::read(int32_t bytes, obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
 {
@@ -700,6 +855,46 @@ void RbdImage::close()
 
 	_rbd_close(m_image);
 	m_image = NULL;
+}
+
+result_t RbdImage::createSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	return 0;
+}
+
+result_t RbdImage::removeSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	return 0;
+}
+
+result_t RbdImage::rollbackSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	return 0;
+}
+
+result_t RbdImage::listSnaps(obj_ptr<List_base>& retVal, AsyncEvent* ac)
+{
+	return 0;
+}
+
+result_t RbdImage::protectSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	return 0;
+}
+
+result_t RbdImage::unprotectSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	return 0;
+}
+
+result_t RbdImage::setSnap(exlib::string snapname, AsyncEvent* ac)
+{
+	return 0;
+}
+
+result_t RbdImage::isSnapProtected(bool& retVal, AsyncEvent* ac)
+{
+	return 0;
 }
 #endif
 }

@@ -18,6 +18,7 @@
 namespace fibjs {
 
 class SeekableStream_base;
+class List_base;
 
 class RbdImage_base : public SeekableStream_base {
     DECLARE_CLASS(RbdImage_base);
@@ -32,6 +33,14 @@ public:
     virtual result_t get_block_name_prefix(exlib::string& retVal) = 0;
     virtual result_t resize(int64_t bytes, AsyncEvent* ac) = 0;
     virtual result_t flush(AsyncEvent* ac) = 0;
+    virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac) = 0;
+    virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac) = 0;
+    virtual result_t rollbackSnap(exlib::string snapname, AsyncEvent* ac) = 0;
+    virtual result_t listSnaps(obj_ptr<List_base>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t protectSnap(exlib::string snapname, AsyncEvent* ac) = 0;
+    virtual result_t unprotectSnap(exlib::string snapname, AsyncEvent* ac) = 0;
+    virtual result_t setSnap(exlib::string snapname, AsyncEvent* ac) = 0;
+    virtual result_t isSnapProtected(bool& retVal, AsyncEvent* ac) = 0;
 
 public:
     static void s__new(const v8::FunctionCallbackInfo<v8::Value>& args)
@@ -53,19 +62,45 @@ public:
     static void s_get_block_name_prefix(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args);
     static void s_resize(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_flush(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_createSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_removeSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_rollbackSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_listSnaps(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_protectSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_unprotectSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_setSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
+    static void s_isSnapProtected(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 public:
     ASYNC_MEMBER1(RbdImage_base, resize, int64_t);
     ASYNC_MEMBER0(RbdImage_base, flush);
+    ASYNC_MEMBER1(RbdImage_base, createSnap, exlib::string);
+    ASYNC_MEMBER1(RbdImage_base, removeSnap, exlib::string);
+    ASYNC_MEMBER1(RbdImage_base, rollbackSnap, exlib::string);
+    ASYNC_MEMBERVALUE1(RbdImage_base, listSnaps, obj_ptr<List_base>);
+    ASYNC_MEMBER1(RbdImage_base, protectSnap, exlib::string);
+    ASYNC_MEMBER1(RbdImage_base, unprotectSnap, exlib::string);
+    ASYNC_MEMBER1(RbdImage_base, setSnap, exlib::string);
+    ASYNC_MEMBERVALUE1(RbdImage_base, isSnapProtected, bool);
 };
 }
+
+#include "List.h"
 
 namespace fibjs {
 inline ClassInfo& RbdImage_base::class_info()
 {
     static ClassData::ClassMethod s_method[] = {
         { "resize", s_resize, false },
-        { "flush", s_flush, false }
+        { "flush", s_flush, false },
+        { "createSnap", s_createSnap, false },
+        { "removeSnap", s_removeSnap, false },
+        { "rollbackSnap", s_rollbackSnap, false },
+        { "listSnaps", s_listSnaps, false },
+        { "protectSnap", s_protectSnap, false },
+        { "unprotectSnap", s_unprotectSnap, false },
+        { "setSnap", s_setSnap, false },
+        { "isSnapProtected", s_isSnapProtected, false }
     };
 
     static ClassData::ClassProperty s_property[] = {
@@ -191,6 +226,150 @@ inline void RbdImage_base::s_flush(const v8::FunctionCallbackInfo<v8::Value>& ar
         hr = pInst->ac_flush();
 
     METHOD_VOID();
+}
+
+inline void RbdImage_base::s_createSnap(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RbdImage_base);
+    METHOD_ENTER();
+
+    ASYNC_METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_createSnap(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_createSnap(v0);
+
+    METHOD_VOID();
+}
+
+inline void RbdImage_base::s_removeSnap(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RbdImage_base);
+    METHOD_ENTER();
+
+    ASYNC_METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_removeSnap(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_removeSnap(v0);
+
+    METHOD_VOID();
+}
+
+inline void RbdImage_base::s_rollbackSnap(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RbdImage_base);
+    METHOD_ENTER();
+
+    ASYNC_METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_rollbackSnap(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_rollbackSnap(v0);
+
+    METHOD_VOID();
+}
+
+inline void RbdImage_base::s_listSnaps(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    obj_ptr<List_base> vr;
+
+    METHOD_INSTANCE(RbdImage_base);
+    METHOD_ENTER();
+
+    ASYNC_METHOD_OVER(0, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_listSnaps(cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_listSnaps(vr);
+
+    METHOD_RETURN();
+}
+
+inline void RbdImage_base::s_protectSnap(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RbdImage_base);
+    METHOD_ENTER();
+
+    ASYNC_METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_protectSnap(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_protectSnap(v0);
+
+    METHOD_VOID();
+}
+
+inline void RbdImage_base::s_unprotectSnap(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RbdImage_base);
+    METHOD_ENTER();
+
+    ASYNC_METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_unprotectSnap(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_unprotectSnap(v0);
+
+    METHOD_VOID();
+}
+
+inline void RbdImage_base::s_setSnap(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    METHOD_INSTANCE(RbdImage_base);
+    METHOD_ENTER();
+
+    ASYNC_METHOD_OVER(1, 0);
+
+    OPT_ARG(exlib::string, 0, "");
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_setSnap(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_setSnap(v0);
+
+    METHOD_VOID();
+}
+
+inline void RbdImage_base::s_isSnapProtected(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+    bool vr;
+
+    METHOD_INSTANCE(RbdImage_base);
+    METHOD_ENTER();
+
+    ASYNC_METHOD_OVER(0, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_isSnapProtected(cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_isSnapProtected(vr);
+
+    METHOD_RETURN();
 }
 }
 

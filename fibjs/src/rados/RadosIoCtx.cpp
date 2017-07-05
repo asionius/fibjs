@@ -8,7 +8,7 @@
 #include "object.h"
 #include "RadosIoCtx.h"
 #include "RadosStream.h"
-#include "RbeImage.h"
+#include "RbdImage.h"
 #include "List.h"
 
 #ifndef _WIN32
@@ -162,7 +162,7 @@ static inline int32_t load_librbd(void) {
 result_t RadosIoCtx::createImage(exlib::string name, int64_t size, int64_t stripe_unit, int64_t stripe_count)
 {
 	result_t hr;
-	int32_t order;
+	int32_t order = 0;
 
 	hr = load_librbd();
 	if (hr < 0)
@@ -170,10 +170,10 @@ result_t RadosIoCtx::createImage(exlib::string name, int64_t size, int64_t strip
 
 	if (stripe_unit < 0)
 		hr = _rbd_create2(m_ioctx, name.c_str(),
-		                  size, RBD_FEATURES_ALL, &order);
+		                  size, RBD_FEATURE_LAYERING, &order);
 	else
 		hr = _rbd_create3(m_ioctx, name.c_str(),
-		                  size, RBD_FEATURES_ALL,
+		                  size, RBD_FEATURE_LAYERING | RBD_FEATURE_STRIPINGV2,
 		                  &order, stripe_unit, stripe_count);
 	if (hr < 0)
 		return CHECK_ERROR(hr);
@@ -184,21 +184,22 @@ result_t RadosIoCtx::createImage(exlib::string name, int64_t size, int64_t strip
 result_t RadosIoCtx::cloneImage(exlib::string pName, exlib::string pSnapshot, RadosIoCtx_base* dstio, exlib::string cName, int64_t stripe_unit, int32_t stripe_count)
 {
 	result_t hr;
-	int32_t order;
+	int32_t order = 0;
 
 	hr = load_librbd();
 	if (hr < 0)
 		return hr;
 
 	RadosIoCtx* dio = (RadosIoCtx*)dstio;
+	const char *p_snap = pSnapshot.c_str();
 	if (stripe_unit < 0)
 		hr = _rbd_clone(m_ioctx, pName.c_str(),
-		                pSnapshot.c_str(), dio->m_ioctx,
-		                cName.c_str(), RBD_FEATURES_ALL, &order);
+		                p_snap[0] == '\0' ? NULL : p_snap, dio->m_ioctx,
+		                cName.c_str(), RBD_FEATURE_LAYERING, &order);
 	else
 		hr = _rbd_clone2(m_ioctx, pName.c_str(),
-		                 pSnapshot.c_str(), dio->m_ioctx,
-		                 cName.c_str(), RBD_FEATURES_ALL,
+		                 p_snap[0] == '\0' ? NULL : p_snap, dio->m_ioctx,
+		                 cName.c_str(), RBD_FEATURE_LAYERING | RBD_FEATURE_STRIPINGV2,
 		                 &order, stripe_unit, stripe_count);
 	if (hr < 0)
 		return CHECK_ERROR(hr);

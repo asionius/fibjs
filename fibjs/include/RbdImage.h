@@ -46,6 +46,14 @@ public:
     virtual result_t get_block_name_prefix(exlib::string& retVal);
     virtual result_t resize(int64_t bytes, AsyncEvent* ac);
     virtual result_t flush(AsyncEvent* ac);
+    virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac);
+    virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac);
+    virtual result_t rollbackSnap(exlib::string snapname, AsyncEvent* ac);
+    virtual result_t listSnaps(obj_ptr<List_base>& retVal, AsyncEvent* ac);
+    virtual result_t protectSnap(exlib::string snapname, AsyncEvent* ac);
+    virtual result_t unprotectSnap(exlib::string snapname, AsyncEvent* ac);
+    virtual result_t setSnap(exlib::string snapname, AsyncEvent* ac);
+    virtual result_t isSnapProtected(bool& retVal, AsyncEvent* ac);
 
 public:
     result_t open(rados_ioctx_t io, exlib::string name, exlib::string snapshot);

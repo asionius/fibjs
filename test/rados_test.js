@@ -293,6 +293,8 @@ describe('rbd', () => {
 	var imgName2 = "image2";
 	var poolName = "rbdpool";
 	var poolName2 = "rbdpool2";
+	var snap = "snapshot"
+	var snap2 = "snapshot2"
 
 	before(() => {
 		if (win) return;
@@ -327,19 +329,102 @@ describe('rbd', () => {
 		if (win) return;
 		if (!radosCluster) return;
 		assert.doesNotThrow(() => {
-			radosIoctx.createImage(imgName, 1024);
+			radosIoctx.createImage(imgName, 1024 * 1024);
 		})
 		assert.ok(radosIoctx.listImages().indexOf(imgName) > -1)
 	});
+
+	it('openImage', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		assert.doesNotThrow(() => {
+			rbdImage = radosIoctx.openImage(imgName);
+		})
+	});
+
+	it('createSnap & listSnaps', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.createSnap(snap);
+		assert.equal(rbdImage.listSnaps().length, 1);
+		assert.equal(rbdImage.listSnaps()[0], snap);
+	});
+
+	it('removeSnap', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.removeSnap(snap);
+		assert.equal(rbdImage.listSnaps().length, 0);
+	});
+
+	it('rollbackSnap', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.write('1234');
+		rbdImage.rewind();
+		assert.equal(rbdImage.read(4).toString(), '1234');
+		rbdImage.createSnap(snap);
+		rbdImage.rewind();
+		rbdImage.write('4321');
+		assert.equal(rbdImage.read(4).toString(), '4321');
+		rbdImage.rollbackSnap(snap);
+		rbdImage.rewind();
+		assert.equal(rbdImage.read(4).toString(), '1234');
+	});
+
+	it('protectSnap', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.protectSnap(snap);
+		assert.throws(() => {
+			rbdImage.removeSnap(snap);
+		})
+	});
+
+	it('unprotectSnap', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.unprotectSnap(snap);
+		assert.doesNotThrow(() => {
+			rbdImage.removeSnap(snap);
+		})
+	});
+
+	it('setSnap', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.rewind();
+		rbdImage.write('1234');
+		rbdImage.createSnap(snap);
+		rbdImage.setSnap(snap);
+		rbdImage.rewind();
+		assert.throws(() => {
+			rbdImage.read(4);
+		})
+		rbdImage.setSnap();
+		rbdImage.rewind();
+		assert.equal(rbdImage.read(4).toString(), '1234');
+	});
+
+	it('isSnapProtected', () => {
+		if (win) return;
+		if (!radosCluster) return;
+		rbdImage.protectSnap(snap);
+		assert.equal(true, rbdImage.isSnapProtected(snap));
+		rbdImage.unprotectSnap(snap);
+		assert.equal(false, rbdImage.isSnapProtected(snap));
+	});
+
 
 	it('cloneImage', () => {
 		if (win) return;
 		if (!radosCluster) return;
 		var ctx = radosCluster.createIoCtx(poolName2);
 		assert.doesNotThrow(() => {
-			radosIoctx.cloneImage(imgName, '', ctx, imgName2);
+			radosIoctx.cloneImage(imgName, snap, ctx, imgName2);
 		})
-		assert.ok(ctx.listImages().indexOf(imgName2) > -1);
+		assert.equal(ctx.listImages().length, 1);
+		assert.equal(ctx.listImages()[0], imgName2);
 		ctx.destroy();
 	});
 
@@ -360,20 +445,13 @@ describe('rbd', () => {
 		radosIoctx.renameImage(imgName, imgName2);
 		assert.ok(radosIoctx.listImages().indexOf(imgName) < 0);
 		assert.ok(radosIoctx.listImages().indexOf(imgName2) > -1);
+		radosIoctx.renameImage(imgName2, imgName1);
 	});
 
 	it('listImages', () => {
 		if (win) return;
 		if (!radosCluster) return;
 		assert.equal(radosIoctx.listImages().length, 1);
-	});
-
-	it('openImage', () => {
-		if (win) return;
-		if (!radosCluster) return;
-		assert.doesNotThrow(() => {
-			rbdImage = radosIoctx.openImage(imgName2);
-		})
 	});
 
 	it('write', () => {
@@ -429,7 +507,7 @@ describe('rbd', () => {
 		if (win) return;
 		if (!radosCluster) return;
 		rbdImage.seek(0, fs.SEEK_END);
-		assert.equal(1024 * 1024 * 1024, rbdImage.tell());
+		assert.equal(1024 * 1024, rbdImage.tell());
 		rbdImage.rewind();
 		assert.equal(0, rbdImage.tell());
 	});
@@ -445,10 +523,10 @@ describe('rbd', () => {
 	it('resize', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		rbdImage.resize(2048);
-		assert.equal(2048 * 1024 * 1024, rbdImage.size());
-		rbdImage.resize(512);
-		assert.equal(512 * 1024 * 1024, rbdImage.size());
+		rbdImage.resize(1024 * 2048);
+		assert.equal(2048 * 1024, rbdImage.size());
+		rbdImage.resize(512 * 1024);
+		assert.equal(512 * 1024, rbdImage.size());
 	});
 
 	it('get_stripe_unit', () => {
