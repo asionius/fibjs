@@ -454,7 +454,7 @@ describe('rbd', () => {
 		radosIoctx.renameImage(imgName, imgName2);
 		assert.ok(radosIoctx.listImages().indexOf(imgName) < 0);
 		assert.ok(radosIoctx.listImages().indexOf(imgName2) > -1);
-		radosIoctx.renameImage(imgName2, imgName1);
+		radosIoctx.renameImage(imgName2, imgName);
 	});
 
 	it('listImages', () => {
@@ -495,7 +495,7 @@ describe('rbd', () => {
 	it('size & readAll', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		var size = rbdImage.size()();
+		var size = rbdImage.size();
 		rbdImage.seek(-4, fs.SEEK_END);
 		rbdImage.write("1234");
 		rbdImage.seek(-4, fs.SEEK_END);
@@ -505,7 +505,8 @@ describe('rbd', () => {
 	it('copyTo', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		var stm = new require('io').MemoryStream();
+		var io = require('io');
+		var stm = new io.MemoryStream();
 		rbdImage.seek(-4, fs.SEEK_END);
 		rbdImage.copyTo(stm);
 		stm.rewind();
@@ -526,7 +527,7 @@ describe('rbd', () => {
 		if (!radosCluster) return;
 		var stat = rbdImage.stat();
 		var size = rbdImage.size();
-		assert.equal(size, stat.size());
+		assert.equal(size, stat.size);
 	});
 
 	it('resize', () => {

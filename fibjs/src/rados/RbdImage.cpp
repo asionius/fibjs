@@ -441,13 +441,13 @@ result_t RbdImage::stat(obj_ptr<Stat_base>& retVal, AsyncEvent* ac)
 {
 	result_t hr;
 	obj_ptr<Stat> st = new Stat();
-	int64_t size;
+	int64_t sz;
 	date_t time;
 
-	get_size(size);
+	size(sz);
 	get_create_timestamp(time);
 	st->init();
-	st->size = size;
+	st->size = sz;
 	st->ctime = time;
 
 	retVal = st;
