@@ -270,6 +270,7 @@ result_t RadosIoCtx::listImages(obj_ptr<List_base>& retVal)
 	for (i = 0, cur_name = names; cur_name < names + hr; i++) {
 		strBuf1 = cur_name;
 		data->append(strBuf1);
+		cur_name += strlen(cur_name) + 1;
 	}
 	retVal = data;
 

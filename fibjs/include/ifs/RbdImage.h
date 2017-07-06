@@ -25,7 +25,6 @@ class RbdImage_base : public SeekableStream_base {
 
 public:
     // RbdImage_base
-    virtual result_t get_size(int64_t& retVal) = 0;
     virtual result_t get_stripe_unit(int64_t& retVal) = 0;
     virtual result_t get_stripe_count(int64_t& retVal) = 0;
     virtual result_t get_features(int64_t& retVal) = 0;
@@ -54,7 +53,6 @@ public:
     }
 
 public:
-    static void s_get_size(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args);
     static void s_get_stripe_unit(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args);
     static void s_get_stripe_count(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args);
     static void s_get_features(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args);
@@ -104,7 +102,6 @@ inline ClassInfo& RbdImage_base::class_info()
     };
 
     static ClassData::ClassProperty s_property[] = {
-        { "size", s_get_size, block_set, false },
         { "stripe_unit", s_get_stripe_unit, block_set, false },
         { "stripe_count", s_get_stripe_count, block_set, false },
         { "features", s_get_features, block_set, false },
@@ -120,18 +117,6 @@ inline ClassInfo& RbdImage_base::class_info()
 
     static ClassInfo s_ci(s_cd);
     return s_ci;
-}
-
-inline void RbdImage_base::s_get_size(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args)
-{
-    int64_t vr;
-
-    METHOD_INSTANCE(RbdImage_base);
-    PROPERTY_ENTER();
-
-    hr = pInst->get_size(vr);
-
-    METHOD_RETURN();
 }
 
 inline void RbdImage_base::s_get_stripe_unit(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args)

@@ -333,7 +333,7 @@ result_t RbdImage::close(AsyncEvent* ac)
 	result_t hr;
 
 	if (!ac)
-		return CHECK_ERROR(CALL_E_INVALID_CALL);
+		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	close();
 
@@ -414,6 +414,9 @@ result_t RbdImage::size(int64_t& retVal)
 	uint64_t size;
 	result_t hr;
 
+	if (!_rbd_get_size)
+		return CHECK_ERROR(CALL_E_SYMBOLNOTFOUND);
+
 	hr = _rbd_get_size(m_image, &size);
 	if (hr < 0)
 		return CHECK_ERROR(hr);
@@ -426,8 +429,6 @@ result_t RbdImage::size(int64_t& retVal)
 result_t RbdImage::readAll(obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
 {
 	result_t hr;
-
-	m_off = 0;
 
 	hr = cc_read(-1, retVal);
 	if (hr < 0)
@@ -451,11 +452,6 @@ result_t RbdImage::stat(obj_ptr<Stat_base>& retVal, AsyncEvent* ac)
 
 	retVal = st;
 	return 0;
-}
-
-result_t RbdImage::get_size(int64_t& retVal)
-{
-	return size(retVal);
 }
 
 result_t RbdImage::get_stripe_unit(int64_t& retVal)
@@ -801,10 +797,7 @@ result_t RbdImage::stat(obj_ptr<Stat_base>& retVal, AsyncEvent* ac)
 {
 	return 0;
 }
-result_t RbdImage::get_size(int64_t& retVal)
-{
-	return 0;
-}
+
 result_t RbdImage::get_stripe_unit(int64_t& retVal)
 {
 	return 0;

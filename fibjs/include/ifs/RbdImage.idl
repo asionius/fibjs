@@ -14,9 +14,6 @@
  */
 interface RbdImage : SeekableStream
 {
-    /*! @brief 查询镜像大小 */
-    readonly Long size;
-
     /*! @brief 查询条纹大小 */
     readonly Long stripe_unit;
 

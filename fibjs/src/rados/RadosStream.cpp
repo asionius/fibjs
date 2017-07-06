@@ -439,8 +439,6 @@ result_t RadosStream::readAll(obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
 
 	result_t hr;
 
-	m_off = 0;
-
 	hr = cc_read(-1, retVal);
 	if (hr < 0)
 		return hr;

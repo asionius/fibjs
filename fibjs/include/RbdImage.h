@@ -38,7 +38,6 @@ public:
 
 public:
     // RbdImage_base
-    virtual result_t get_size(int64_t& retVal);
     virtual result_t get_stripe_unit(int64_t& retVal);
     virtual result_t get_stripe_count(int64_t& retVal);
     virtual result_t get_features(int64_t& retVal);

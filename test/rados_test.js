@@ -305,6 +305,11 @@ describe('rbd', () => {
 			radosCluster.createPool(poolName2);
 			radosIoctx = radosCluster.createIoCtx(poolName);
 		} catch (e) {
+			if(radosCluster)
+			{
+				radosCluster.deletePool(poolName);
+				radosCluster.deletePool(poolName2);
+			}
 			radosCluster = null;
 			console.error(e.toString());
 		}
@@ -366,6 +371,7 @@ describe('rbd', () => {
 		rbdImage.createSnap(snap);
 		rbdImage.rewind();
 		rbdImage.write('4321');
+		rbdImage.rewind();
 		assert.equal(rbdImage.read(4).toString(), '4321');
 		rbdImage.rollbackSnap(snap);
 		rbdImage.rewind();
@@ -399,11 +405,13 @@ describe('rbd', () => {
 		rbdImage.setSnap(snap);
 		rbdImage.rewind();
 		assert.throws(() => {
-			rbdImage.read(4);
+			rbdImage.write("1234");
 		})
 		rbdImage.setSnap();
 		rbdImage.rewind();
-		assert.equal(rbdImage.read(4).toString(), '1234');
+		assert.doesNotThrow(() => {
+			rbdImage.write("1234")
+		})
 	});
 
 	it('isSnapProtected', () => {
@@ -420,6 +428,7 @@ describe('rbd', () => {
 		if (win) return;
 		if (!radosCluster) return;
 		var ctx = radosCluster.createIoCtx(poolName2);
+		rbdImage.protectSnap(snap);
 		assert.doesNotThrow(() => {
 			radosIoctx.cloneImage(imgName, snap, ctx, imgName2);
 		})
@@ -486,10 +495,10 @@ describe('rbd', () => {
 	it('size & readAll', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		var size = rbdImage.size();
-		rbdImage.seek(4, fs.SEEK_END);
+		var size = rbdImage.size()();
+		rbdImage.seek(-4, fs.SEEK_END);
 		rbdImage.write("1234");
-		rbdImage.seek(4, fs.SEEK_END);
+		rbdImage.seek(-4, fs.SEEK_END);
 		assert.equal(rbdImage.readAll().toString(), "1234");
 	});
 
@@ -497,7 +506,7 @@ describe('rbd', () => {
 		if (win) return;
 		if (!radosCluster) return;
 		var stm = new require('io').MemoryStream();
-		rbdImage.seek(4, fs.SEEK_END);
+		rbdImage.seek(-4, fs.SEEK_END);
 		rbdImage.copyTo(stm);
 		stm.rewind();
 		assert.equal(stm.readAll().toString(), "1234");
@@ -517,7 +526,7 @@ describe('rbd', () => {
 		if (!radosCluster) return;
 		var stat = rbdImage.stat();
 		var size = rbdImage.size();
-		assert.equal(size, stat.size);
+		assert.equal(size, stat.size());
 	});
 
 	it('resize', () => {
@@ -532,31 +541,31 @@ describe('rbd', () => {
 	it('get_stripe_unit', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		assert.ok(typeof rbdImage.get_stripe_unit(), "number");
+		assert.ok(typeof rbdImage.stripe_unit, "number");
 	});
 
 	it('get_stripe_count', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		assert.ok(typeof rbdImage.get_stripe_count(), "number");
+		assert.ok(typeof rbdImage.stripe_count, "number");
 	});
 
 	it('get_features', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		assert.ok(typeof rbdImage.get_features(), "number");
+		assert.ok(typeof rbdImage.features, "number");
 	});
 
 	it('get_create_timestamp', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		assert.ok(typeof rbdImage.get_create_timestamp(), "object");
+		assert.ok(typeof rbdImage.create_timestamp, "object");
 	});
 
 	it('get_block_name_prefix', () => {
 		if (win) return;
 		if (!radosCluster) return;
-		assert.ok(typeof rbdImage.get_block_name_prefix(), "string");
+		assert.ok(typeof rbdImage.block_name_prefix, "string");
 	});
 
 	it('flush', () => {
