@@ -34,6 +34,9 @@ public:
     virtual result_t rewind();
     virtual result_t size(int64_t& retVal);
     virtual result_t readAll(obj_ptr<Buffer_base>& retVal, AsyncEvent* ac);
+    virtual result_t eof(bool& retVal);
+    virtual result_t truncate(int64_t bytes, AsyncEvent* ac);
+    virtual result_t flush(AsyncEvent* ac);
     virtual result_t stat(obj_ptr<Stat_base>& retVal, AsyncEvent* ac);
 
 public:
@@ -44,7 +47,6 @@ public:
     virtual result_t get_create_timestamp(date_t& retVal);
     virtual result_t get_block_name_prefix(exlib::string& retVal);
     virtual result_t resize(int64_t bytes, AsyncEvent* ac);
-    virtual result_t flush(AsyncEvent* ac);
     virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t rollbackSnap(exlib::string snapname, AsyncEvent* ac);

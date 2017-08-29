@@ -251,7 +251,7 @@ result_t RbdImage::read(int32_t bytes, obj_ptr<Buffer_base>& retVal, AsyncEvent*
 	if (!m_image)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	int64_t lbytes = bytes;
@@ -319,7 +319,7 @@ result_t RbdImage::write(Buffer_base* data, AsyncEvent* ac)
 	if (!m_image)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	exlib::string strBuf;
@@ -332,7 +332,7 @@ result_t RbdImage::close(AsyncEvent* ac)
 {
 	result_t hr;
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	close();
@@ -342,7 +342,7 @@ result_t RbdImage::close(AsyncEvent* ac)
 
 result_t RbdImage::copyTo(Stream_base* stm, int64_t bytes, int64_t& retVal, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	if (!m_image)
@@ -435,6 +435,20 @@ result_t RbdImage::readAll(obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
 		return hr;
 
 	return 0;
+}
+
+result_t RbdImage::eof(bool& retVal)
+{
+	int64_t p, sz;
+	tell(p);
+	size(sz);
+	retVal = p == sz;
+	return 0;
+}
+
+result_t RbdImage::truncate(int64_t bytes, AsyncEvent* ac)
+{
+	return resize(bytes, ac);
 }
 
 result_t RbdImage::stat(obj_ptr<Stat_base>& retVal, AsyncEvent* ac)
@@ -595,7 +609,7 @@ result_t RbdImage::flush(AsyncEvent* ac)
 		}
 	};
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	return (new asyncFlush(this, ac, m_lockWrite))->call();
@@ -630,7 +644,7 @@ void RbdImage::close()
 
 result_t RbdImage::createSnap(exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -644,7 +658,7 @@ result_t RbdImage::createSnap(exlib::string snapname, AsyncEvent* ac)
 
 result_t RbdImage::removeSnap(exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -658,7 +672,7 @@ result_t RbdImage::removeSnap(exlib::string snapname, AsyncEvent* ac)
 
 result_t RbdImage::rollbackSnap(exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -672,7 +686,7 @@ result_t RbdImage::rollbackSnap(exlib::string snapname, AsyncEvent* ac)
 
 result_t RbdImage::listSnaps(obj_ptr<List_base>& retVal, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -698,7 +712,7 @@ result_t RbdImage::listSnaps(obj_ptr<List_base>& retVal, AsyncEvent* ac)
 
 result_t RbdImage::protectSnap(exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -712,7 +726,7 @@ result_t RbdImage::protectSnap(exlib::string snapname, AsyncEvent* ac)
 
 result_t RbdImage::unprotectSnap(exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -726,7 +740,7 @@ result_t RbdImage::unprotectSnap(exlib::string snapname, AsyncEvent* ac)
 
 result_t RbdImage::setSnap(exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -741,7 +755,7 @@ result_t RbdImage::setSnap(exlib::string snapname, AsyncEvent* ac)
 
 result_t RbdImage::isSnapProtected(exlib::string snapname, bool& retVal, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -790,6 +804,14 @@ result_t RbdImage::size(int64_t& retVal)
 	return 0;
 }
 result_t RbdImage::readAll(obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
+{
+	return 0;
+}
+result_t RbdImage::eof(bool& retVal)
+{
+	return 0;
+}
+result_t RbdImage::truncate(int64_t bytes, AsyncEvent* ac)
 {
 	return 0;
 }

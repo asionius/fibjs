@@ -330,7 +330,7 @@ result_t RadosIoCtx::open(exlib::string key, obj_ptr<RadosStream_base>& retVal)
 
 result_t RadosIoCtx::createSnap(exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -344,7 +344,7 @@ result_t RadosIoCtx::createSnap(exlib::string snapname, AsyncEvent* ac)
 
 result_t RadosIoCtx::removeSnap(exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -358,7 +358,7 @@ result_t RadosIoCtx::removeSnap(exlib::string snapname, AsyncEvent* ac)
 
 result_t RadosIoCtx::rollbackSnap(exlib::string oid, exlib::string snapname, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -372,7 +372,7 @@ result_t RadosIoCtx::rollbackSnap(exlib::string oid, exlib::string snapname, Asy
 
 result_t RadosIoCtx::listOids(obj_ptr<List_base>& retVal, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -400,32 +400,50 @@ result_t RadosIoCtx::listOids(obj_ptr<List_base>& retVal, AsyncEvent* ac)
 	return 0;
 }
 
-result_t RadosIoCtx::listOids(Regex_base* reg, obj_ptr<List_base>& retVal, AsyncEvent* ac)
+#ifndef RE_SIZE
+#define RE_SIZE 64
+#endif
+result_t RadosIoCtx::listOids(exlib::string pattern, obj_ptr<List_base>& retVal, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
 	rados_list_ctx_t ctx;
 	obj_ptr<List> data = new List();
 	exlib::string oid;
-	bool match;
+	int32_t rc = 0;
+	int32_t opt = PCRE_JAVASCRIPT_COMPAT | PCRE_NEWLINE_ANYCRLF | PCRE_UCP;
+	const char* error;
+	int32_t erroffset;
+	pcre* re;
+	int32_t ovector[RE_SIZE];
 	const char* entry;
 
 	hr = _rados_objects_list_open(m_ioctx, &ctx);
 	if (hr < 0)
 		return CHECK_ERROR(hr);
 
+	re = pcre_compile(pattern.c_str(), opt, &error, &erroffset, NULL);
+	if (re == NULL) {
+		char buf[1024];
+
+		sprintf(buf, "listOids: Compilation failed at offset %d: %s.", erroffset, error);
+		return CHECK_ERROR(Runtime::setError(buf));
+	}
+
 	while ((hr = _rados_objects_list_next(ctx, &entry, NULL)) != -ENOENT)
 	{
 		if (hr < 0)
 			return CHECK_ERROR(hr);
 		oid = entry;
-		reg->test(oid, match);
-		if (match)
+		rc = pcre_exec(re, NULL, oid.c_str(), (int32_t)oid.length(),
+		               0, 0, ovector, RE_SIZE);
+		if (rc > 0)
 			data->append(oid);
 	}
 
+	pcre_free(re);
 	_rados_objects_list_close(ctx);
 	retVal = data;
 
@@ -434,7 +452,7 @@ result_t RadosIoCtx::listOids(Regex_base* reg, obj_ptr<List_base>& retVal, Async
 
 result_t RadosIoCtx::getXattr(exlib::string oid, exlib::string attr, exlib::string& retVal, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -452,7 +470,7 @@ result_t RadosIoCtx::getXattr(exlib::string oid, exlib::string attr, exlib::stri
 
 result_t RadosIoCtx::setXattr(exlib::string oid, exlib::string attr, exlib::string value, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -466,7 +484,7 @@ result_t RadosIoCtx::setXattr(exlib::string oid, exlib::string attr, exlib::stri
 
 result_t RadosIoCtx::rmXattr(exlib::string oid, exlib::string attr, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -502,7 +520,7 @@ result_t RadosIoCtx::getXattrs(exlib::string oid, v8::Local<v8::Object>& retVal,
 		if (name == NULL)
 			break;
 
-		retVal->Set(isolate->NewFromUtf8(name), isolate->NewFromUtf8(val, len));
+		retVal->Set(isolate->NewString(name), isolate->NewString(val, len));
 	}
 	_rados_getxattrs_end(iter);
 
@@ -511,7 +529,7 @@ result_t RadosIoCtx::getXattrs(exlib::string oid, v8::Local<v8::Object>& retVal,
 
 result_t RadosIoCtx::destroy(AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	if (m_ioctx)
@@ -523,7 +541,7 @@ result_t RadosIoCtx::destroy(AsyncEvent* ac)
 
 result_t RadosIoCtx::remove(exlib::string key, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -616,7 +634,7 @@ result_t RadosIoCtx::listOids(obj_ptr<List_base>& retVal, AsyncEvent* ac)
 	return 0;
 }
 
-result_t RadosIoCtx::listOids(Regex_base* reg, obj_ptr<List_base>& retVal, AsyncEvent* ac)
+result_t RadosIoCtx::listOids(exlib::string pattern, obj_ptr<List_base>& retVal, AsyncEvent* ac)
 {
 	return 0;
 }

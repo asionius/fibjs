@@ -1,6 +1,7 @@
 #include "ifs/RadosIoCtx.h"
 #include <rados/librados.h>
 #include <rados/librbd.h>
+#include <pcre/pcre.h>
 
 #ifndef _fj_RADOSIOCTX_H
 #define _fj_RADOSIOCTX_H
@@ -30,7 +31,7 @@ public:
     virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t rollbackSnap(exlib::string oid, exlib::string snapname, AsyncEvent* ac);
     virtual result_t listOids(obj_ptr<List_base>& retVal, AsyncEvent* ac);
-    virtual result_t listOids(Regex_base* reg, obj_ptr<List_base>& retVal, AsyncEvent* ac);
+    virtual result_t listOids(exlib::string pattern, obj_ptr<List_base>& retVal, AsyncEvent* ac);
     virtual result_t getXattr(exlib::string oid, exlib::string attr, exlib::string& retVal, AsyncEvent* ac);
     virtual result_t setXattr(exlib::string oid, exlib::string attr, exlib::string value, AsyncEvent* ac);
     virtual result_t rmXattr(exlib::string oid, exlib::string attr, AsyncEvent* ac);

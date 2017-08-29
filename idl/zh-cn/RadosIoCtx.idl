@@ -90,10 +90,10 @@ interface RadosIoCtx
     List listOids() async;
 
     /*! @brief 列出当前pool中匹配reg正则表达式的所有key
-     @param reg 为列出的key指定正则
+     @param pattern 为列出的key指定正则
      @return 列出的匹配reg的key的列表
     */
-    List listOids(Regex reg) async;
+    List listOids(String pattern) async;
 
     /*! @brief 获取指定的key的指定属性值
      @param oid 指定的key

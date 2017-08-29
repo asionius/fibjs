@@ -30,8 +30,6 @@ public:
     virtual result_t radosStat(obj_ptr<RadosStat_base>& retVal, AsyncEvent* ac) = 0;
     virtual result_t writeFull(Buffer_base* data, AsyncEvent* ac) = 0;
     virtual result_t append(Buffer_base* data, AsyncEvent* ac) = 0;
-    virtual result_t truncate(int64_t bytes, AsyncEvent* ac) = 0;
-    virtual result_t flush(AsyncEvent* ac) = 0;
 
 public:
     static void s__new(const v8::FunctionCallbackInfo<v8::Value>& args)
@@ -41,7 +39,7 @@ public:
         Isolate* isolate = Isolate::current();
 
         isolate->m_isolate->ThrowException(
-            isolate->NewFromUtf8("not a constructor"));
+            isolate->NewString("not a constructor"));
     }
 
 public:
@@ -49,15 +47,11 @@ public:
     static void s_radosStat(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_writeFull(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_append(const v8::FunctionCallbackInfo<v8::Value>& args);
-    static void s_truncate(const v8::FunctionCallbackInfo<v8::Value>& args);
-    static void s_flush(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 public:
     ASYNC_MEMBERVALUE1(RadosStream_base, radosStat, obj_ptr<RadosStat_base>);
     ASYNC_MEMBER1(RadosStream_base, writeFull, Buffer_base*);
     ASYNC_MEMBER1(RadosStream_base, append, Buffer_base*);
-    ASYNC_MEMBER1(RadosStream_base, truncate, int64_t);
-    ASYNC_MEMBER0(RadosStream_base, flush);
 };
 }
 
@@ -69,10 +63,11 @@ inline ClassInfo& RadosStream_base::class_info()
 {
     static ClassData::ClassMethod s_method[] = {
         { "radosStat", s_radosStat, false },
+        { "radosStatSync", s_radosStat, false },
         { "writeFull", s_writeFull, false },
+        { "writeFullSync", s_writeFull, false },
         { "append", s_append, false },
-        { "truncate", s_truncate, false },
-        { "flush", s_flush, false }
+        { "appendSync", s_append, false }
     };
 
     static ClassData::ClassProperty s_property[] = {
@@ -151,40 +146,6 @@ inline void RadosStream_base::s_append(const v8::FunctionCallbackInfo<v8::Value>
         hr = CALL_RETURN_NULL;
     } else
         hr = pInst->ac_append(v0);
-
-    METHOD_VOID();
-}
-
-inline void RadosStream_base::s_truncate(const v8::FunctionCallbackInfo<v8::Value>& args)
-{
-    METHOD_INSTANCE(RadosStream_base);
-    METHOD_ENTER();
-
-    ASYNC_METHOD_OVER(1, 1);
-
-    ARG(int64_t, 0);
-
-    if (!cb.IsEmpty()) {
-        pInst->acb_truncate(v0, cb);
-        hr = CALL_RETURN_NULL;
-    } else
-        hr = pInst->ac_truncate(v0);
-
-    METHOD_VOID();
-}
-
-inline void RadosStream_base::s_flush(const v8::FunctionCallbackInfo<v8::Value>& args)
-{
-    METHOD_INSTANCE(RadosStream_base);
-    METHOD_ENTER();
-
-    ASYNC_METHOD_OVER(0, 0);
-
-    if (!cb.IsEmpty()) {
-        pInst->acb_flush(cb);
-        hr = CALL_RETURN_NULL;
-    } else
-        hr = pInst->ac_flush();
 
     METHOD_VOID();
 }

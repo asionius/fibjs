@@ -256,7 +256,7 @@ result_t RadosStream::read(int32_t bytes, obj_ptr<Buffer_base>& retVal, AsyncEve
 	if (!m_ioctx)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	int64_t lbytes = bytes;
@@ -325,7 +325,7 @@ result_t RadosStream::write(Buffer_base* data, AsyncEvent* ac)
 	if (!m_ioctx)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	exlib::string strBuf;
@@ -336,7 +336,7 @@ result_t RadosStream::write(Buffer_base* data, AsyncEvent* ac)
 
 result_t RadosStream::close(AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	close();
@@ -348,7 +348,7 @@ result_t RadosStream::copyTo(Stream_base* stm, int64_t bytes, int64_t& retVal, A
 	if (!m_ioctx)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	obj_ptr<Buffer_base> buf;
@@ -434,7 +434,7 @@ result_t RadosStream::size(int64_t& retVal)
 
 result_t RadosStream::readAll(obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -446,9 +446,18 @@ result_t RadosStream::readAll(obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
 	return 0;
 }
 
+result_t RadosStream::eof(bool& retVal)
+{
+	int64_t p, sz;
+	tell(p);
+	size(sz);
+	retVal = p == sz;
+	return 0;
+}
+
 result_t RadosStream::stat(obj_ptr<Stat_base>& retVal, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -527,7 +536,7 @@ result_t RadosStream::radosStat(obj_ptr<RadosStat_base>& retVal, AsyncEvent* ac)
 	if (!m_ioctx)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	return (new asyncGetStat(retVal, this, ac, m_lockRead))->call();
@@ -582,7 +591,7 @@ result_t RadosStream::writeFull(Buffer_base* data, AsyncEvent* ac)
 	if (!m_ioctx)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	exlib::string strBuf;
@@ -640,7 +649,7 @@ result_t RadosStream::append(Buffer_base* data, AsyncEvent* ac)
 	if (!m_ioctx)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	exlib::string strBuf;
@@ -653,7 +662,7 @@ result_t RadosStream::append(Buffer_base* data, AsyncEvent* ac)
 
 result_t RadosStream::truncate(int64_t bytes, AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -667,7 +676,7 @@ result_t RadosStream::truncate(int64_t bytes, AsyncEvent* ac)
 
 result_t RadosStream::flush(AsyncEvent* ac)
 {
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	result_t hr;
@@ -740,7 +749,7 @@ result_t RadosStream::remove(AsyncEvent* ac)
 	if (!m_ioctx)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	if (!ac)
+	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
 	return (new asyncRemove(m_key, this, ac, m_lockWrite))->call();
@@ -780,6 +789,10 @@ result_t RadosStream::size(int64_t& retVal)
 	return 0;
 }
 result_t RadosStream::readAll(obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
+{
+	return 0;
+}
+result_t RadosStream::eof(bool& retVal)
 {
 	return 0;
 }

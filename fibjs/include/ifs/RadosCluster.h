@@ -63,11 +63,17 @@ inline ClassInfo& RadosCluster_base::class_info()
 {
     static ClassData::ClassMethod s_method[] = {
         { "connect", s_connect, false },
+        { "connectSync", s_connect, false },
         { "createPool", s_createPool, false },
+        { "createPoolSync", s_createPool, false },
         { "listPool", s_listPool, false },
+        { "listPoolSync", s_listPool, false },
         { "deletePool", s_deletePool, false },
+        { "deletePoolSync", s_deletePool, false },
         { "createIoCtx", s_createIoCtx, false },
-        { "shutdown", s_shutdown, false }
+        { "createIoCtxSync", s_createIoCtx, false },
+        { "shutdown", s_shutdown, false },
+        { "shutdownSync", s_shutdown, false }
     };
 
     static ClassData s_cd = {

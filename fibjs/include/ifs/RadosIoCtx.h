@@ -19,7 +19,6 @@ namespace fibjs {
 class List_base;
 class RbdImage_base;
 class RadosStream_base;
-class Regex_base;
 
 class RadosIoCtx_base : public object_base {
     DECLARE_CLASS(RadosIoCtx_base);
@@ -39,7 +38,7 @@ public:
     virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t rollbackSnap(exlib::string oid, exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t listOids(obj_ptr<List_base>& retVal, AsyncEvent* ac) = 0;
-    virtual result_t listOids(Regex_base* reg, obj_ptr<List_base>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t listOids(exlib::string pattern, obj_ptr<List_base>& retVal, AsyncEvent* ac) = 0;
     virtual result_t getXattr(exlib::string oid, exlib::string attr, exlib::string& retVal, AsyncEvent* ac) = 0;
     virtual result_t setXattr(exlib::string oid, exlib::string attr, exlib::string value, AsyncEvent* ac) = 0;
     virtual result_t rmXattr(exlib::string oid, exlib::string attr, AsyncEvent* ac) = 0;
@@ -54,7 +53,7 @@ public:
         Isolate* isolate = Isolate::current();
 
         isolate->m_isolate->ThrowException(
-            isolate->NewFromUtf8("not a constructor"));
+            isolate->NewString("not a constructor"));
     }
 
 public:
@@ -83,7 +82,7 @@ public:
     ASYNC_MEMBER1(RadosIoCtx_base, removeSnap, exlib::string);
     ASYNC_MEMBER2(RadosIoCtx_base, rollbackSnap, exlib::string, exlib::string);
     ASYNC_MEMBERVALUE1(RadosIoCtx_base, listOids, obj_ptr<List_base>);
-    ASYNC_MEMBERVALUE2(RadosIoCtx_base, listOids, Regex_base*, obj_ptr<List_base>);
+    ASYNC_MEMBERVALUE2(RadosIoCtx_base, listOids, exlib::string, obj_ptr<List_base>);
     ASYNC_MEMBERVALUE3(RadosIoCtx_base, getXattr, exlib::string, exlib::string, exlib::string);
     ASYNC_MEMBER3(RadosIoCtx_base, setXattr, exlib::string, exlib::string, exlib::string);
     ASYNC_MEMBER2(RadosIoCtx_base, rmXattr, exlib::string, exlib::string);
@@ -95,7 +94,6 @@ public:
 #include "List.h"
 #include "RbdImage.h"
 #include "RadosStream.h"
-#include "Regex.h"
 
 namespace fibjs {
 inline ClassInfo& RadosIoCtx_base::class_info()
@@ -110,15 +108,25 @@ inline ClassInfo& RadosIoCtx_base::class_info()
         { "version", s_version, false },
         { "open", s_open, false },
         { "remove", s_remove, false },
+        { "removeSync", s_remove, false },
         { "createSnap", s_createSnap, false },
+        { "createSnapSync", s_createSnap, false },
         { "removeSnap", s_removeSnap, false },
+        { "removeSnapSync", s_removeSnap, false },
         { "rollbackSnap", s_rollbackSnap, false },
+        { "rollbackSnapSync", s_rollbackSnap, false },
         { "listOids", s_listOids, false },
+        { "listOidsSync", s_listOids, false },
         { "getXattr", s_getXattr, false },
+        { "getXattrSync", s_getXattr, false },
         { "setXattr", s_setXattr, false },
+        { "setXattrSync", s_setXattr, false },
         { "rmXattr", s_rmXattr, false },
+        { "rmXattrSync", s_rmXattr, false },
         { "getXattrs", s_getXattrs, false },
-        { "destroy", s_destroy, false }
+        { "getXattrsSync", s_getXattrs, false },
+        { "destroy", s_destroy, false },
+        { "destroySync", s_destroy, false }
     };
 
     static ClassData s_cd = {
@@ -347,7 +355,7 @@ inline void RadosIoCtx_base::s_listOids(const v8::FunctionCallbackInfo<v8::Value
 
     ASYNC_METHOD_OVER(1, 1);
 
-    ARG(obj_ptr<Regex_base>, 0);
+    ARG(exlib::string, 0);
 
     if (!cb.IsEmpty()) {
         pInst->acb_listOids(v0, cb);

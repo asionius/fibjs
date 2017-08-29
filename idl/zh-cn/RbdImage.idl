@@ -34,9 +34,6 @@ interface RbdImage : SeekableStream
      */
     resize(Long bytes) async;
 
-    /*! @brief 阻塞直到将文件缓冲区内容写入物理设备 */
-    flush() async;
-
     /*! @brief  为一个rbd镜像创建一个快照
      @param snapname 将要创建的快照名称
     */

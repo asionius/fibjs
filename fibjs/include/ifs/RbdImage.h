@@ -31,7 +31,6 @@ public:
     virtual result_t get_create_timestamp(date_t& retVal) = 0;
     virtual result_t get_block_name_prefix(exlib::string& retVal) = 0;
     virtual result_t resize(int64_t bytes, AsyncEvent* ac) = 0;
-    virtual result_t flush(AsyncEvent* ac) = 0;
     virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t rollbackSnap(exlib::string snapname, AsyncEvent* ac) = 0;
@@ -49,7 +48,7 @@ public:
         Isolate* isolate = Isolate::current();
 
         isolate->m_isolate->ThrowException(
-            isolate->NewFromUtf8("not a constructor"));
+            isolate->NewString("not a constructor"));
     }
 
 public:
@@ -59,7 +58,6 @@ public:
     static void s_get_create_timestamp(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args);
     static void s_get_block_name_prefix(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& args);
     static void s_resize(const v8::FunctionCallbackInfo<v8::Value>& args);
-    static void s_flush(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_createSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_removeSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
     static void s_rollbackSnap(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -71,7 +69,6 @@ public:
 
 public:
     ASYNC_MEMBER1(RbdImage_base, resize, int64_t);
-    ASYNC_MEMBER0(RbdImage_base, flush);
     ASYNC_MEMBER1(RbdImage_base, createSnap, exlib::string);
     ASYNC_MEMBER1(RbdImage_base, removeSnap, exlib::string);
     ASYNC_MEMBER1(RbdImage_base, rollbackSnap, exlib::string);
@@ -90,15 +87,23 @@ inline ClassInfo& RbdImage_base::class_info()
 {
     static ClassData::ClassMethod s_method[] = {
         { "resize", s_resize, false },
-        { "flush", s_flush, false },
+        { "resizeSync", s_resize, false },
         { "createSnap", s_createSnap, false },
+        { "createSnapSync", s_createSnap, false },
         { "removeSnap", s_removeSnap, false },
+        { "removeSnapSync", s_removeSnap, false },
         { "rollbackSnap", s_rollbackSnap, false },
+        { "rollbackSnapSync", s_rollbackSnap, false },
         { "listSnaps", s_listSnaps, false },
+        { "listSnapsSync", s_listSnaps, false },
         { "protectSnap", s_protectSnap, false },
+        { "protectSnapSync", s_protectSnap, false },
         { "unprotectSnap", s_unprotectSnap, false },
+        { "unprotectSnapSync", s_unprotectSnap, false },
         { "setSnap", s_setSnap, false },
-        { "isSnapProtected", s_isSnapProtected, false }
+        { "setSnapSync", s_setSnap, false },
+        { "isSnapProtected", s_isSnapProtected, false },
+        { "isSnapProtectedSync", s_isSnapProtected, false }
     };
 
     static ClassData::ClassProperty s_property[] = {
@@ -193,22 +198,6 @@ inline void RbdImage_base::s_resize(const v8::FunctionCallbackInfo<v8::Value>& a
         hr = CALL_RETURN_NULL;
     } else
         hr = pInst->ac_resize(v0);
-
-    METHOD_VOID();
-}
-
-inline void RbdImage_base::s_flush(const v8::FunctionCallbackInfo<v8::Value>& args)
-{
-    METHOD_INSTANCE(RbdImage_base);
-    METHOD_ENTER();
-
-    ASYNC_METHOD_OVER(0, 0);
-
-    if (!cb.IsEmpty()) {
-        pInst->acb_flush(cb);
-        hr = CALL_RETURN_NULL;
-    } else
-        hr = pInst->ac_flush();
 
     METHOD_VOID();
 }

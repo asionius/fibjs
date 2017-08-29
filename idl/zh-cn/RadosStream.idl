@@ -30,12 +30,4 @@ interface RadosStream : SeekableStream
      @param data 将要被写入的数据 
     */
     append(Buffer data) async;
-
-    /*! @brief 修改kv存储对象尺寸，如果大于原尺寸则用0填充，否则多于的内容将被删除
-      @param bytes 新的文件尺寸
-     */
-    truncate(Long bytes) async;
-
-    /*! @brief 阻塞直到将文件缓冲区内容写入物理设备 */
-    flush() async;
 };
