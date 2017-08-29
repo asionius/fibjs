@@ -4,7 +4,6 @@ test.setup();
 var rados = require('rados');
 var os = require('os');
 var fs = require('fs');
-var re = require('re');
 
 var win = os.type() == "Windows";
 
@@ -212,9 +211,8 @@ describe('rados', () => {
 		if (win) return;
 		if (!radosCluster) return;
 		var oid1 = "foo1";
-		var reg = re.compile("foo\\d");
-		assert.ok(radosIoctx.listOids(reg).indexOf(oid) == -1);
-		assert.ok(radosIoctx.listOids(reg).indexOf(oid1) > -1);
+		assert.ok(radosIoctx.listOids("foo\\d").indexOf(oid) == -1);
+		assert.ok(radosIoctx.listOids("foo\\d").indexOf(oid1) > -1);
 	});
 
 	it('set xattr', () => {
@@ -305,8 +303,7 @@ describe('rbd', () => {
 			radosCluster.createPool(poolName2);
 			radosIoctx = radosCluster.createIoCtx(poolName);
 		} catch (e) {
-			if(radosCluster)
-			{
+			if (radosCluster) {
 				radosCluster.deletePool(poolName);
 				radosCluster.deletePool(poolName2);
 			}
@@ -587,4 +584,4 @@ describe('rbd', () => {
 
 });
 
-// test.run(console.DEBUG);
+repl && test.run(console.DEBUG);
