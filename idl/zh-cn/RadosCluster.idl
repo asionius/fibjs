@@ -1,7 +1,7 @@
 /*! @brief rados集群操作对象，用于创建对rados集群进行读写的ioctx
 
  rados集群对象，用于创建对rados集群进行存取的ioctx对象，可使用 rados 模块创建
- @code
+```
  var rados = require('rados');
  var cluster = new rados.Rados('clusterName', 'userName', '/path/to/myceph.conf');
  cluster.connect();
@@ -9,7 +9,7 @@
  var s = io.open('key');
  s.write('hello key');
  console.log(s.readAll().toString());
- @endcode
+ ```
  */
 interface RadosCluster
 {
@@ -43,6 +43,7 @@ interface RadosCluster
 
     /*! @brief 创建一个io上下文 
      @param poolName 指定在poolName 上创建io上下文
+     @return 返回rados客户端和服务端连接的上下文
     */
     RadosIoCtx createIoCtx(String poolName) async;
 

@@ -1,7 +1,7 @@
 /*! @brief rados 集群读写io上下文对象，用于打开和关闭kv存储
 
  rados集群读写io上下文对象，可使用 RadosCluster 对象创建
- @code
+```
  var rados = require('rados');
  var cluster = new rados.Rados('clusterName', 'userName', '/path/to/myceph.conf');
  cluster.connect();
@@ -9,7 +9,7 @@
  var s = io.open('key');
  s.write('hello key');
  console.log(s.readAll().toString());
- @endcode
+ ```
  */
 interface RadosIoCtx
 {
@@ -50,6 +50,7 @@ interface RadosIoCtx
     /*! @brief 打开一个rbd image对象 
      @param name 被打开镜像的名称
      @param snapshot 被打开镜像的快照名称, 默认没有快照
+     @return 返回一个rbd镜像
     */
     RbdImage openImage(String name, String snapshot = "");
 
@@ -60,6 +61,7 @@ interface RadosIoCtx
 
     /*! @brief 打开一个kv对象 
      @param key 被打开对象的key
+     @return 返回rados对象流
     */
     RadosStream open(String key);
 

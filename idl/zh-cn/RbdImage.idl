@@ -1,7 +1,7 @@
 /*! @brief rbd image对象，用于读写rbd image
 
  rbd image对象,用于对rbd image进行操作，可使用 RadosIoCtx 对象创建
- @code
+```
  var rados = require('rados');
  var cluster = new rados.Rados('clusterName', 'userName', '/path/to/myceph.conf');
  cluster.connect();
@@ -10,7 +10,7 @@
  var image = io.openImage('myImage');
  image.write('hello key');
  console.log(image.readAll().toString());
- @endcode
+```
  */
 interface RbdImage : SeekableStream
 {

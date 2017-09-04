@@ -1,7 +1,7 @@
 /*! @brief rados流操作对象，用于读写rados存储
 
  rados KV存储对象,用于对rados集群kv存储进行操作，可使用 RadosIoCtx 对象创建
- @code
+```
  var rados = require('rados');
  var cluster = new rados.Rados('clusterName', 'userName', '/path/to/myceph.conf');
  cluster.connect();
@@ -9,7 +9,7 @@
  var s = io.open('key');
  s.write('hello key');
  console.log(s.readAll().toString());
- @endcode
+ ```
  */
 interface RadosStream : SeekableStream
 {
