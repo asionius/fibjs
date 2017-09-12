@@ -1,0 +1,17 @@
+
+/*! @brief hyperscan 正则搜索对象，用于处理大文本高速正则搜索
+
+ HsRegExp 对象属于 hyperscan 模块，创建：
+ ```JavaScript
+ var reg = hyperscan.compile("hello");
+ var reg1 = hyperscan.compile(["hello"]);
+ ```
+ */
+
+interface HsRegExp : object
+{
+	/*使用hyperscan对文本进行扫描
+	 @return 返回扫描结果
+	*/
+	Value scan(String text);
+};
