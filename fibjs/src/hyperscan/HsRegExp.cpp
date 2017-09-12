@@ -41,7 +41,12 @@ static inline int32_t load_libhyperscan()
     if (!b_init)
         b_init = true;
 
+#if defined(Darwin)
+    s_handle = dlopen("libhs.dylib", RTLD_LAZY);
+#else
     s_handle = dlopen("libhs.so", RTLD_LAZY);
+#endif
+
     if (!s_handle)
         return CHECK_ERROR(Runtime::setError("Cannot load library: 'libhs.so'"));
 
@@ -116,7 +121,7 @@ result_t HsRegExp::compile(exlib::string pattern, exlib::string flag)
     if (hr < 0)
         return CHECK_ERROR(hr);
 
-    hr = parseFlags(pattern, flags);
+    hr = parseFlags(flag, flags);
     if (hr < 0)
         return CHECK_ERROR(hr);
 
@@ -152,6 +157,7 @@ result_t HsRegExp::compile(v8::Local<v8::Array> patterns, v8::Local<v8::Array> f
     std::vector<const char *> cstrPatterns;
     std::vector<uint32_t> nFlags;
     std::vector<uint32_t> ids;
+    exlib::string pstr;
 
     for (int32_t i = 0; i < patternsSz; i++) {
         v8::Local<v8::Value> pv = patterns->Get(i);
@@ -167,17 +173,18 @@ result_t HsRegExp::compile(v8::Local<v8::Array> patterns, v8::Local<v8::Array> f
             nFlags.push_back(flag);
         }
         else
-            nFlags.push_back(0);
-
-        exlib::string pstr;
+            nFlags.push_back(HS_FLAG_SOM_LEFTMOST);
 
         hr = GetArgumentValue(isolate->m_isolate, pv, pstr);
         if (hr < 0)
             return CHECK_ERROR(hr);
 
         m_patterns.push_back(pstr);
-        cstrPatterns.push_back(pstr.c_str());
         ids.push_back(i);
+    }
+
+    for (size_t i = 0; i < m_patterns.size(); i++) {
+        cstrPatterns.push_back(m_patterns[i].c_str());
     }
 
     hs_compile_error_t *compileErr;
@@ -188,10 +195,9 @@ result_t HsRegExp::compile(v8::Local<v8::Array> patterns, v8::Local<v8::Array> f
         exlib::string errMsg;
         if (compileErr->expression < 0) {
             // The error does not refer to a particular expression.
-            errMsg += "ERROR: ";
             errMsg += compileErr->message;
         } else {
-            errMsg += "ERROR: Pattern '";
+            errMsg += "Pattern '";
             errMsg += cstrPatterns[compileErr->expression];
             errMsg += "' failed with error '";
             errMsg += compileErr->message;
