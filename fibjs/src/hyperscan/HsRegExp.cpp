@@ -173,7 +173,7 @@ result_t HsRegExp::compile(v8::Local<v8::Array> patterns, v8::Local<v8::Array> f
             nFlags.push_back(flag);
         }
         else
-            nFlags.push_back(HS_FLAG_SOM_LEFTMOST);
+            nFlags.push_back(0);
 
         hr = GetArgumentValue(isolate->m_isolate, pv, pstr);
         if (hr < 0)
@@ -215,7 +215,7 @@ result_t HsRegExp::compile(v8::Local<v8::Array> patterns, v8::Local<v8::Array> f
 
 result_t HsRegExp::parseFlags(exlib::string flags, uint32_t& retVal)
 {
-    uint32_t flag = HS_FLAG_SOM_LEFTMOST;
+    uint32_t flag = 0;
     exlib::string errMsg;
 
     for (size_t i = 0; i < flags.length(); i++)
@@ -235,6 +235,8 @@ result_t HsRegExp::parseFlags(exlib::string flags, uint32_t& retVal)
             flag |= HS_FLAG_UTF8; break;
         case 'W':
             flag |= HS_FLAG_UCP; break;
+        case 'L':
+            flag |= HS_FLAG_SOM_LEFTMOST; break;
         default:
             errMsg += "Unsupported flag '";
             errMsg += flags[i];
