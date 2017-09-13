@@ -11,6 +11,7 @@
 interface HsRegExp : object
 {
 	/*使用hyperscan对文本进行扫描
+	 @param text 需要扫描的文本
 	 @return 返回扫描结果
 	*/
 	Value scan(String text);
