@@ -83,6 +83,7 @@ int HsRegExp::onMatch(unsigned int id, unsigned long long from, unsigned long lo
                       unsigned int flags, void *ctx)
 {
     HsRegRes *res = (HsRegRes*)ctx;
+    if (!res->m_match) res->m_match = true;
     res->addOne(id, (int64_t)from, (int64_t)to);
     return 0;
 }
@@ -105,8 +106,14 @@ result_t HsRegExp::scan(exlib::string text, v8::Local<v8::Value>& retVal)
         errMsg = "Unable to scan text";
         return CHECK_ERROR(Runtime::setError(errMsg));
     }
-    res->addAll(m_patterns);
-    res->valueOf(retVal);
+    if (res->m_match)
+    {
+        res->addAll(m_patterns);
+        res->valueOf(retVal);
+    }
+    else
+        retVal = v8::Null(Isolate::current()->m_isolate);
+
     delete res;
     return 0;
 }

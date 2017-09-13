@@ -30,7 +30,9 @@ public:
     class HsRegRes : public NObject
     {
     public:
-        HsRegRes() {}
+        HsRegRes()
+            : m_match(false)
+        {}
         ~HsRegRes() {}
 
     public:
@@ -62,6 +64,9 @@ public:
             for (uint32_t i = 0; i < m_ids.size(); i++)
                 add(patterns[m_ids[i]], m_values[i]);
         }
+
+    public:
+        bool m_match;
 
     private:
         std::vector<uint32_t> m_ids;

@@ -71,6 +71,11 @@ describe("hs", () => {
 				]
 			})
 		})
+		it("not match", () => {
+			var reg = hs.compile("hello");
+			var res = reg.scan("only world");
+			assert.isNull(res);
+		})
 	})
 	describe("multi pattern", () => {
 		it("use 'L' flag", () => {
