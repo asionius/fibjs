@@ -76,6 +76,7 @@ public:
 public:
     // HsRegExp_base
     virtual result_t scan(exlib::string text, v8::Local<v8::Value>& retVal);
+    virtual result_t scan(Buffer_base* buff, exlib::string codec, v8::Local<v8::Value>& retVal);
     void clear();
 
 public:

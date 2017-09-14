@@ -118,6 +118,19 @@ result_t HsRegExp::scan(exlib::string text, v8::Local<v8::Value>& retVal)
     return 0;
 }
 
+result_t HsRegExp::scan(Buffer_base* buff, exlib::string codec, v8::Local<v8::Value>& retVal)
+{
+
+    exlib::string str;
+    result_t hr;
+
+    hr = buff->toString(codec, 0, str);
+    if (hr < 0)
+        return CHECK_ERROR(hr);
+
+    return scan(str, retVal);
+}
+
 result_t HsRegExp::compile(exlib::string pattern, exlib::string flag)
 {
     uint32_t flags;
@@ -279,6 +292,11 @@ static int HsRegExp::onMatch(unsigned int id, unsigned long long from, unsigned 
 }
 
 result_t HsRegExp::scan(exlib::string text, v8::Local<v8::Object>& retVal)
+{
+    return 0;
+}
+
+result_t HsRegExp::scan(Buffer_base* buff, exlib::string codec, v8::Local<v8::Value>& retVal)
 {
     return 0;
 }
