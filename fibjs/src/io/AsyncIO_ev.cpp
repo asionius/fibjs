@@ -73,26 +73,80 @@ result_t net_base::backend(exlib::string& retVal)
 }
 
 class asyncEv;
+class statLock;
 
 static ev_async s_asEvent;
 static exlib::LockedList<asyncEv> s_evWait;
+static exlib::LockedList<asyncEv> s_evStat;
+static statLock *s_ev;
+static statLock *s_ev1;
+static exlib::Locker s_statLocker;
+FILE *logfp = NULL;
+
+static const char* code_stat_map[13] = {
+    "m_locker.lock",
+    "process",
+    "noAsync m_locker.unlock",
+    "post",
+    "s_evWait.putTail",
+    "ev_async_send",
+    "p1->start",
+    "ev_io_init",
+    "ev_io_start",
+    "onready",
+    "ev_io_stop",
+    "m_locker.unlock",
+    "apost"
+};
 
 class asyncEv : public ev_io,
                 public exlib::linkitem {
 public:
+    asyncEv()
+        :m_statCode(0)
+    {
+    }
     virtual ~asyncEv()
     {
     }
 
     void post()
     {
+        m_statCode = 4;
         s_evWait.putTail(this);
+        m_statCode = 5;
         ev_async_send(s_loop, &s_asEvent);
+    }
+
+    void addToStat()
+    {
+        s_evStat.putTail(this);
+    }
+
+    void removeFromStat()
+    {
+        while(!s_statLocker.lock((exlib::Task_base *)s_ev));
+        s_evStat.remove(this);
+        s_statLocker.unlock((exlib::Task_base *)s_ev);
     }
 
     virtual void start()
     {
     }
+public:
+    int32_t m_statCode;
+};
+
+class statLock: public exlib::Task_base {
+public:
+
+public:
+    virtual void suspend(){};
+    virtual void suspend(exlib::spinlock& lock){
+        lock.unlock();
+    };
+    virtual void resume(){};
+
 };
 
 class asyncProc : public asyncEv,
@@ -111,7 +165,9 @@ public:
     {
         m_opt = this;
         ev_io* io = (ev_io*)this;
+        m_statCode = 7;
         ev_io_init(io, io_cb, m_s, m_op);
+        m_statCode = 8;
         ev_io_start(s_loop, this);
     }
 
@@ -133,15 +189,19 @@ public:
 public:
     result_t call()
     {
+        addToStat();
+        m_statCode = 0;
         if (m_locker.lock(this)) {
+            m_statCode = 1;
             result_t hr = process();
             if (hr != CALL_E_PENDDING) {
+                m_statCode = 2;
                 m_locker.unlock(this);
+                removeFromStat();
                 delete this;
-
                 return hr;
             }
-
+            m_statCode = 3;
             post();
         }
 
@@ -161,13 +221,17 @@ public:
     void ready(int32_t v)
     {
         m_opt = NULL;
+        m_statCode = 11;
         m_locker.unlock(this);
+        m_statCode = 12;
         m_ac->apost(v);
+        removeFromStat();
         delete this;
     }
 
     void onready()
     {
+        m_statCode = 10;
         ev_io_stop(s_loop, this);
         proc();
     }
@@ -182,10 +246,38 @@ public:
 private:
     static void io_cb(struct ev_loop* loop, struct ev_io* watcher, int32_t revents)
     {
+        ((asyncProc*)watcher)->m_statCode = 9;
         ((asyncProc*)watcher)->onready();
     }
 };
 
+class _statIO: public exlib::OSThread {
+public:
+    _statIO()
+    {
+    }
+
+    virtual void Run()
+    {
+        static int32_t cnt = 0;
+        while(1)
+        {
+            sleep(1000 * 60);
+            exlib::List<asyncEv> jobs;
+            asyncEv* p1;
+
+            while(!s_statLocker.lock((exlib::Task_base *)s_ev1));
+            s_evStat.getList(jobs);
+
+            while ((p1 = jobs.getHead()) != 0)
+            {
+                fprintf(logfp, "%d: fiber stack: %s\n", cnt, code_stat_map[p1->m_statCode]);
+            }
+            s_statLocker.unlock((exlib::Task_base *)s_ev);
+            cnt++;
+        }
+    }
+};
 class _acIO : public exlib::OSThread {
 public:
     _acIO()
@@ -215,7 +307,10 @@ private:
         s_evWait.getList(jobs);
 
         while ((p1 = jobs.getHead()) != 0)
+        {
+            p1->m_statCode = 6;
             p1->start();
+        }
     }
 
     static void tm_cb(struct ev_loop* loop, struct ev_timer* watcher,
@@ -237,7 +332,17 @@ private:
 void init_aio()
 {
     static _acIO s_acIO;
+    static _statIO s_atatIO;
+
+    if((logfp = fopen("./fiber-stack.log", "a+")) == NULL)
+    {
+        fprintf(stderr, "fopen error\n");
+        exit(1);
+    }
+    s_ev = new statLock();
+    s_ev1 = new statLock();
     s_acIO.start();
+    s_atatIO.start();
 }
 
 result_t AsyncIO::cancel(AsyncEvent* ac)
