@@ -73,14 +73,29 @@ result_t net_base::backend(exlib::string& retVal)
 }
 
 class asyncEv;
-class statLock;
+class _spinLock
+{
+public:
+    _spinLock()
+        :m_cnt(0)
+    {}
+    void lock()
+    {
+        while(m_cnt);
+        m_cnt = 1;
+    }
+    void unlock()
+    {
+        m_cnt = 0;
+    }
+private:
+    volatile int32_t m_cnt;
+};
 
 static ev_async s_asEvent;
 static exlib::LockedList<asyncEv> s_evWait;
 static exlib::LockedList<asyncEv> s_evStat;
-static statLock *s_ev;
-static statLock *s_ev1;
-static exlib::Locker s_statLocker;
+static _spinLock s_spinlock;
 FILE *logfp = NULL;
 
 static const char* code_stat_map[13] = {
@@ -121,13 +136,15 @@ public:
     void addToStat()
     {
         s_evStat.putTail(this);
+
     }
 
     void removeFromStat()
     {
-        while(!s_statLocker.lock((exlib::Task_base *)s_ev));
+        s_spinlock.lock();
+ 
         s_evStat.remove(this);
-        s_statLocker.unlock((exlib::Task_base *)s_ev);
+        s_spinlock.unlock();
     }
 
     virtual void start()
@@ -137,17 +154,6 @@ public:
     int32_t m_statCode;
 };
 
-class statLock: public exlib::Task_base {
-public:
-
-public:
-    virtual void suspend(){};
-    virtual void suspend(exlib::spinlock& lock){
-        lock.unlock();
-    };
-    virtual void resume(){};
-
-};
 
 class asyncProc : public asyncEv,
                   public exlib::Task_base {
@@ -189,7 +195,6 @@ public:
 public:
     result_t call()
     {
-        addToStat();
         m_statCode = 0;
         if (m_locker.lock(this)) {
             m_statCode = 1;
@@ -197,10 +202,10 @@ public:
             if (hr != CALL_E_PENDDING) {
                 m_statCode = 2;
                 m_locker.unlock(this);
-                removeFromStat();
                 delete this;
                 return hr;
             }
+            addToStat();
             m_statCode = 3;
             post();
         }
@@ -262,19 +267,20 @@ public:
         static int32_t cnt = 0;
         while(1)
         {
-            sleep(1000 * 60);
-            exlib::List<asyncEv> jobs;
+            sleep(1000 * 60 * 2);
+            bool has = false;
+            s_spinlock.lock();
             asyncEv* p1;
 
-            while(!s_statLocker.lock((exlib::Task_base *)s_ev1));
-            s_evStat.getList(jobs);
-
-            while ((p1 = jobs.getHead()) != 0)
+            for(p1 = s_evStat.tail(); p1; p1 = s_evStat.prev(p1))
             {
+                has = true;
                 fprintf(logfp, "%d: fiber stack: %s\n", cnt, code_stat_map[p1->m_statCode]);
             }
-            s_statLocker.unlock((exlib::Task_base *)s_ev);
-            cnt++;
+            s_spinlock.unlock();
+            if(has)
+                cnt++;
+            fflush(logfp);
         }
     }
 };
@@ -339,8 +345,6 @@ void init_aio()
         fprintf(stderr, "fopen error\n");
         exit(1);
     }
-    s_ev = new statLock();
-    s_ev1 = new statLock();
     s_acIO.start();
     s_atatIO.start();
 }
