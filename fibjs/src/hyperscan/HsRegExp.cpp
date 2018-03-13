@@ -81,13 +81,9 @@ static inline int32_t load_libhyperscan()
 int HsRegExp::onMatch(unsigned int id, unsigned long long from, unsigned long long to,
                       unsigned int flags, void *ctx)
 {
-    printf("onMatch\n");
-    fflush(stdout);
     HsRegRes *res = (HsRegRes*)ctx;
     if (!res->m_match) res->m_match = true;
     res->addOne(id, (int64_t)from, (int64_t)to);
-    printf("mathcn return\n");
-    fflush(stdout);
     return 0;
 }
 
@@ -104,25 +100,16 @@ result_t HsRegExp::scan(exlib::string text, v8::Local<v8::Value>& retVal)
         }
     }
     HsRegRes *res = new HsRegRes();
-    printf("start scan\n");
-    fflush(stdout);
     if (_hs_scan(m_database, text.c_str(), text.length(), 0,
                  m_scratch, onMatch, res) != HS_SUCCESS) {
         errMsg = "Unable to scan text";
+        delete res;
         return CHECK_ERROR(Runtime::setError(errMsg));
     }
-    printf("scan over\n");
-    fflush(stdout);
     if (res->m_match)
     {
-        printf("res add all\n");
-        fflush(stdout);
         res->addAll(m_patterns);
-        printf("after res add all\n");
-        fflush(stdout);
         res->valueOf(retVal);
-        printf("after res valudof\n");
-        fflush(stdout);
     }
     else
         retVal = v8::Null(Isolate::current()->m_isolate);
