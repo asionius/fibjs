@@ -6,6 +6,7 @@
  */
 
 #include "object.h"
+#include "ifs/io.h"
 #include "RbdImage.h"
 #include "Stat.h"
 #include "Buffer.h"
@@ -334,7 +335,9 @@ result_t RbdImage::close(AsyncEvent* ac)
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
-	close();
+	hr = close();
+	if(hr < 0)
+		return hr;
 
 	return 0;
 }
@@ -347,32 +350,16 @@ result_t RbdImage::copyTo(Stream_base* stm, int64_t bytes, int64_t& retVal, Asyn
 	if (!m_image)
 		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
-	obj_ptr<Buffer_base> buf;
-	result_t hr;
-	int64_t offset;
-
-	if (bytes < 0)
-		hr = cc_read(-1, buf);
-	else
-		hr = cc_read(bytes, buf);
-	if (hr < 0)
-		return hr;
-
-	hr = stm->cc_write(buf);
-	if (hr < 0)
-		return hr;
-
-	int32_t len;
-	buf->get_length(len);
-	retVal = len;
-
-	return 0;
+    return io_base::copyStream(this, stm, bytes, retVal, ac);
 }
 
 result_t RbdImage::seek(int64_t offset, int32_t whence)
 {
 	result_t hr;
 	uint64_t size;
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	hr = _rbd_get_size(m_image, &size);
 	if (hr < 0)
@@ -412,6 +399,9 @@ result_t RbdImage::size(int64_t& retVal)
 {
 	uint64_t size;
 	result_t hr;
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	if (!_rbd_get_size)
 		return CHECK_ERROR(Runtime::setError("Symbol not found"));
@@ -472,6 +462,9 @@ result_t RbdImage::get_stripe_unit(int64_t& retVal)
 	uint64_t unit;
 	result_t hr;
 
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
+
 	if (!_rbd_get_stripe_unit)
 		return CHECK_ERROR(Runtime::setError("Symbol not found"));
 
@@ -487,6 +480,9 @@ result_t RbdImage::get_stripe_count(int64_t& retVal)
 {
 	uint64_t cnt;
 	result_t hr;
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	if (!_rbd_get_stripe_unit)
 		return CHECK_ERROR(Runtime::setError("Symbol not found"));
@@ -504,6 +500,9 @@ result_t RbdImage::get_features(int64_t& retVal)
 	uint64_t features;
 	result_t hr;
 
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
+
 	if (!_rbd_get_features)
 		return CHECK_ERROR(Runtime::setError("Symbol not found"));
 
@@ -519,6 +518,9 @@ result_t RbdImage::get_create_timestamp(date_t& retVal)
 {
 	result_t hr;
 	struct timespec tm;
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	if (!_rbd_get_create_timestamp)
 		return CHECK_ERROR(Runtime::setError("Symbol not found"));
@@ -538,6 +540,9 @@ result_t RbdImage::get_block_name_prefix(exlib::string& retVal)
 	exlib::string name;
 	char* p;
 
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
+
 	if (!_rbd_get_block_name_prefix)
 		return CHECK_ERROR(Runtime::setError("Symbol not found"));
 
@@ -556,6 +561,9 @@ result_t RbdImage::get_block_name_prefix(exlib::string& retVal)
 result_t RbdImage::resize(int64_t bytes, AsyncEvent* ac)
 {
 	result_t hr;
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	if (bytes < 0)
 		return CHECK_ERROR(CALL_E_INVALIDARG);
@@ -611,6 +619,9 @@ result_t RbdImage::flush(AsyncEvent* ac)
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
+
 	return (new asyncFlush(this, ac, m_lockWrite))->call();
 }
 
@@ -632,19 +643,27 @@ result_t RbdImage::open(rados_ioctx_t io, exlib::string name, exlib::string snap
 	return 0;
 }
 
-void RbdImage::close()
+result_t RbdImage::close()
 {
+	result_t hr;
 	if (!m_image)
-		return;
+		return 0;
 
-	_rbd_close(m_image);
+	hr = _rbd_close(m_image);
+	if(hr < 0)
+		return CHECK_ERROR(hr);
+
 	m_image = NULL;
+	return 0;
 }
 
 result_t RbdImage::createSnap(exlib::string snapname, AsyncEvent* ac)
 {
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	result_t hr;
 
@@ -660,6 +679,9 @@ result_t RbdImage::removeSnap(exlib::string snapname, AsyncEvent* ac)
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
+
 	result_t hr;
 
 	hr = _rbd_snap_remove(m_image, snapname.c_str());
@@ -674,6 +696,9 @@ result_t RbdImage::rollbackSnap(exlib::string snapname, AsyncEvent* ac)
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
+
 	result_t hr;
 
 	hr = _rbd_snap_rollback(m_image, snapname.c_str());
@@ -687,6 +712,9 @@ result_t RbdImage::listSnaps(v8::Local<v8::Array>& retVal, AsyncEvent* ac)
 {
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	result_t hr;
 	int32_t max_size = 128;
@@ -714,6 +742,9 @@ result_t RbdImage::protectSnap(exlib::string snapname, AsyncEvent* ac)
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
+
 	result_t hr;
 
 	hr = _rbd_snap_protect(m_image, snapname.c_str());
@@ -727,6 +758,9 @@ result_t RbdImage::unprotectSnap(exlib::string snapname, AsyncEvent* ac)
 {
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	result_t hr;
 
@@ -742,6 +776,9 @@ result_t RbdImage::setSnap(exlib::string snapname, AsyncEvent* ac)
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
 
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
+
 	result_t hr;
 	const char *snap = snapname.c_str();
 
@@ -756,6 +793,9 @@ result_t RbdImage::isSnapProtected(exlib::string snapname, bool& retVal, AsyncEv
 {
 	if (ac->isSync())
 		return CHECK_ERROR(CALL_E_NOSYNC);
+
+	if (!m_image)
+		return CHECK_ERROR(CALL_E_INVALID_CALL);
 
 	result_t hr;
 	int32_t protect;
@@ -851,7 +891,7 @@ result_t RbdImage::open(rados_ioctx_t io, exlib::string name, exlib::string snap
 {
 	return 0;
 }
-void RbdImage::close()
+result_t RbdImage::close()
 {
 }
 

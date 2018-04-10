@@ -58,7 +58,7 @@ public:
 
 public:
     result_t open(rados_ioctx_t io, exlib::string name, exlib::string snapshot);
-    void close();
+    result_t close();
 
 public:
     exlib::atomic m_off;
