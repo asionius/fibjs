@@ -34,7 +34,7 @@ interface RadosCluster
     /*! @brief 列出集群内所有的pool
      @return 集群内所有pool的名称列表
     */
-    Array listPool() async;
+    NArray listPool() async;
 
     /*! @brief 删除一个pool
      @param poolName 将要删除的pool的名称

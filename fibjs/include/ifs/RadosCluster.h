@@ -26,7 +26,7 @@ public:
     static result_t _new(exlib::string clusterName, exlib::string userName, exlib::string confPath, obj_ptr<RadosCluster_base>& retVal, v8::Local<v8::Object> This = v8::Local<v8::Object>());
     virtual result_t connect(AsyncEvent* ac) = 0;
     virtual result_t createPool(exlib::string poolName, int64_t auid, int32_t crushRule, AsyncEvent* ac) = 0;
-    virtual result_t listPool(v8::Local<v8::Array>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t listPool(obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
     virtual result_t deletePool(exlib::string poolName, AsyncEvent* ac) = 0;
     virtual result_t createIoCtx(exlib::string poolName, obj_ptr<RadosIoCtx_base>& retVal, AsyncEvent* ac) = 0;
     virtual result_t shutdown(AsyncEvent* ac) = 0;
@@ -47,7 +47,7 @@ public:
 public:
     ASYNC_MEMBER0(RadosCluster_base, connect);
     ASYNC_MEMBER3(RadosCluster_base, createPool, exlib::string, int64_t, int32_t);
-    ASYNC_MEMBERVALUE1(RadosCluster_base, listPool, v8::Local<v8::Array>);
+    ASYNC_MEMBERVALUE1(RadosCluster_base, listPool, obj_ptr<NArray>);
     ASYNC_MEMBER1(RadosCluster_base, deletePool, exlib::string);
     ASYNC_MEMBERVALUE2(RadosCluster_base, createIoCtx, exlib::string, obj_ptr<RadosIoCtx_base>);
     ASYNC_MEMBER0(RadosCluster_base, shutdown);
@@ -149,7 +149,7 @@ inline void RadosCluster_base::s_createPool(const v8::FunctionCallbackInfo<v8::V
 
 inline void RadosCluster_base::s_listPool(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-    v8::Local<v8::Array> vr;
+    obj_ptr<NArray> vr;
 
     METHOD_NAME("RadosCluster.listPool");
     METHOD_INSTANCE(RadosCluster_base);

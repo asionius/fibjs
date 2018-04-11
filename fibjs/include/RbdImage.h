@@ -15,10 +15,7 @@ public:
     {
     }
 
-    ~RbdImage()
-    {
-        close();
-    }
+    ~RbdImage();
 
 public:
     // Stream_base
@@ -58,7 +55,6 @@ public:
 
 public:
     result_t open(rados_ioctx_t io, exlib::string name, exlib::string snapshot);
-    result_t close();
 
 public:
     exlib::atomic m_off;
@@ -67,7 +63,6 @@ public:
     exlib::string m_name;
     exlib::Locker m_lockWrite;
     exlib::Locker m_lockRead;
-
 };
 }
 
