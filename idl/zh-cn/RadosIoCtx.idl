@@ -19,7 +19,7 @@ interface RadosIoCtx
      @param stripe_unit 条带大小, 默认值-1代表和单个object大小相同
      @param stripe_count 连续写入条带个数, 默认值为1
     */
-    createImage(String name, Long size, Long stripe_unit = -1, Long stripe_count = 1);
+    createImage(String name, Long size, Long stripe_unit = -1, Long stripe_count = 1) async;
 
     /*! @brief 克隆一个rbd image快照到另一个pool中 
      @param pName 父镜象的名称
@@ -29,30 +29,30 @@ interface RadosIoCtx
      @param stripe_unit 条带大小, 默认值-1代表和单个object大小相同
      @param stripe_count 连续写入条带个数, 默认值为1
     */
-    cloneImage(String pName, String pSnapshot, RadosIoCtx dstio, String cName, Long stripe_unit = -1, Integer stripe_count = 0);
+    cloneImage(String pName, String pSnapshot, RadosIoCtx dstio, String cName, Long stripe_unit = -1, Integer stripe_count = 0) async;
 
     /*! @brief 删除一个rbd image对象 
      @param name 将要删除镜象的名称
     */
-    removeImage(String name);
+    removeImage(String name) async;
 
     /*! @brief 重命名一个rbd image对象 
      @param src 原rbd image名称
      @param dst 目的rbd image名称
     */
-    renameImage(String src, String dst);
+    renameImage(String src, String dst) async;
 
     /*! @brief 列出当前pool中所有的镜像名称
      @return 返回的镜像名称列表
     */
-    Array listImages();
+    NArray listImages() async;
 
     /*! @brief 打开一个rbd image对象 
      @param name 被打开镜像的名称
      @param snapshot 被打开镜像的快照名称, 默认没有快照
      @return 返回一个rbd镜像
     */
-    RbdImage openImage(String name, String snapshot = "");
+    RbdImage openImage(String name, String snapshot = "") async;
 
     /*! @brief 返回librbd c库的版本号 
      @return 版本号字符串,格式为"major.minor.extra"
@@ -89,13 +89,13 @@ interface RadosIoCtx
     /*! @brief 列出当前pool内所有的key
      @return 列出的所有key的列表
     */
-    Array listOids() async;
+    NArray listOids() async;
 
     /*! @brief 列出当前pool中匹配reg正则表达式的所有key
      @param pattern 为列出的key指定正则
      @return 列出的匹配reg的key的列表
     */
-    Array listOids(String pattern) async;
+    NArray listOids(String pattern) async;
 
     /*! @brief 获取指定的key的指定属性值
      @param oid 指定的key
@@ -127,7 +127,7 @@ interface RadosIoCtx
      },
      @endcode
     */
-    Object getXattrs(String oid) async;
+    NObject getXattrs(String oid) async;
 
     /*! @brief 销毁一个io上下文 */
     destroy() async;

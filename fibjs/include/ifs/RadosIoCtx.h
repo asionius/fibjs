@@ -24,24 +24,24 @@ class RadosIoCtx_base : public object_base {
 
 public:
     // RadosIoCtx_base
-    virtual result_t createImage(exlib::string name, int64_t size, int64_t stripe_unit, int64_t stripe_count) = 0;
-    virtual result_t cloneImage(exlib::string pName, exlib::string pSnapshot, RadosIoCtx_base* dstio, exlib::string cName, int64_t stripe_unit, int32_t stripe_count) = 0;
-    virtual result_t removeImage(exlib::string name) = 0;
-    virtual result_t renameImage(exlib::string src, exlib::string dst) = 0;
-    virtual result_t listImages(v8::Local<v8::Array>& retVal) = 0;
-    virtual result_t openImage(exlib::string name, exlib::string snapshot, obj_ptr<RbdImage_base>& retVal) = 0;
+    virtual result_t createImage(exlib::string name, int64_t size, int64_t stripe_unit, int64_t stripe_count, AsyncEvent* ac) = 0;
+    virtual result_t cloneImage(exlib::string pName, exlib::string pSnapshot, RadosIoCtx_base* dstio, exlib::string cName, int64_t stripe_unit, int32_t stripe_count, AsyncEvent* ac) = 0;
+    virtual result_t removeImage(exlib::string name, AsyncEvent* ac) = 0;
+    virtual result_t renameImage(exlib::string src, exlib::string dst, AsyncEvent* ac) = 0;
+    virtual result_t listImages(obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t openImage(exlib::string name, exlib::string snapshot, obj_ptr<RbdImage_base>& retVal, AsyncEvent* ac) = 0;
     virtual result_t version(exlib::string& retVal) = 0;
     virtual result_t open(exlib::string key, obj_ptr<RadosStream_base>& retVal) = 0;
     virtual result_t remove(exlib::string key, AsyncEvent* ac) = 0;
     virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t rollbackSnap(exlib::string oid, exlib::string snapname, AsyncEvent* ac) = 0;
-    virtual result_t listOids(v8::Local<v8::Array>& retVal, AsyncEvent* ac) = 0;
-    virtual result_t listOids(exlib::string pattern, v8::Local<v8::Array>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t listOids(obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t listOids(exlib::string pattern, obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
     virtual result_t getXattr(exlib::string oid, exlib::string attr, exlib::string& retVal, AsyncEvent* ac) = 0;
     virtual result_t setXattr(exlib::string oid, exlib::string attr, exlib::string value, AsyncEvent* ac) = 0;
     virtual result_t rmXattr(exlib::string oid, exlib::string attr, AsyncEvent* ac) = 0;
-    virtual result_t getXattrs(exlib::string oid, v8::Local<v8::Object>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t getXattrs(exlib::string oid, obj_ptr<NObject>& retVal, AsyncEvent* ac) = 0;
     virtual result_t destroy(AsyncEvent* ac) = 0;
 
 public:
@@ -76,16 +76,22 @@ public:
     static void s_destroy(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 public:
+    ASYNC_MEMBER4(RadosIoCtx_base, createImage, exlib::string, int64_t, int64_t, int64_t);
+    ASYNC_MEMBER6(RadosIoCtx_base, cloneImage, exlib::string, exlib::string, RadosIoCtx_base*, exlib::string, int64_t, int32_t);
+    ASYNC_MEMBER1(RadosIoCtx_base, removeImage, exlib::string);
+    ASYNC_MEMBER2(RadosIoCtx_base, renameImage, exlib::string, exlib::string);
+    ASYNC_MEMBERVALUE1(RadosIoCtx_base, listImages, obj_ptr<NArray>);
+    ASYNC_MEMBERVALUE3(RadosIoCtx_base, openImage, exlib::string, exlib::string, obj_ptr<RbdImage_base>);
     ASYNC_MEMBER1(RadosIoCtx_base, remove, exlib::string);
     ASYNC_MEMBER1(RadosIoCtx_base, createSnap, exlib::string);
     ASYNC_MEMBER1(RadosIoCtx_base, removeSnap, exlib::string);
     ASYNC_MEMBER2(RadosIoCtx_base, rollbackSnap, exlib::string, exlib::string);
-    ASYNC_MEMBERVALUE1(RadosIoCtx_base, listOids, v8::Local<v8::Array>);
-    ASYNC_MEMBERVALUE2(RadosIoCtx_base, listOids, exlib::string, v8::Local<v8::Array>);
+    ASYNC_MEMBERVALUE1(RadosIoCtx_base, listOids, obj_ptr<NArray>);
+    ASYNC_MEMBERVALUE2(RadosIoCtx_base, listOids, exlib::string, obj_ptr<NArray>);
     ASYNC_MEMBERVALUE3(RadosIoCtx_base, getXattr, exlib::string, exlib::string, exlib::string);
     ASYNC_MEMBER3(RadosIoCtx_base, setXattr, exlib::string, exlib::string, exlib::string);
     ASYNC_MEMBER2(RadosIoCtx_base, rmXattr, exlib::string, exlib::string);
-    ASYNC_MEMBERVALUE2(RadosIoCtx_base, getXattrs, exlib::string, v8::Local<v8::Object>);
+    ASYNC_MEMBERVALUE2(RadosIoCtx_base, getXattrs, exlib::string, obj_ptr<NObject>);
     ASYNC_MEMBER0(RadosIoCtx_base, destroy);
 };
 }
@@ -98,11 +104,17 @@ inline ClassInfo& RadosIoCtx_base::class_info()
 {
     static ClassData::ClassMethod s_method[] = {
         { "createImage", s_createImage, false },
+        { "createImageSync", s_createImage, false },
         { "cloneImage", s_cloneImage, false },
+        { "cloneImageSync", s_cloneImage, false },
         { "removeImage", s_removeImage, false },
+        { "removeImageSync", s_removeImage, false },
         { "renameImage", s_renameImage, false },
+        { "renameImageSync", s_renameImage, false },
         { "listImages", s_listImages, false },
+        { "listImagesSync", s_listImages, false },
         { "openImage", s_openImage, false },
+        { "openImageSync", s_openImage, false },
         { "version", s_version, false },
         { "open", s_open, false },
         { "remove", s_remove, false },
@@ -143,14 +155,18 @@ inline void RadosIoCtx_base::s_createImage(const v8::FunctionCallbackInfo<v8::Va
     METHOD_INSTANCE(RadosIoCtx_base);
     METHOD_ENTER();
 
-    METHOD_OVER(4, 2);
+    ASYNC_METHOD_OVER(4, 2);
 
     ARG(exlib::string, 0);
     ARG(int64_t, 1);
     OPT_ARG(int64_t, 2, -1);
     OPT_ARG(int64_t, 3, 1);
 
-    hr = pInst->createImage(v0, v1, v2, v3);
+    if (!cb.IsEmpty()) {
+        pInst->acb_createImage(v0, v1, v2, v3, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_createImage(v0, v1, v2, v3);
 
     METHOD_VOID();
 }
@@ -161,7 +177,7 @@ inline void RadosIoCtx_base::s_cloneImage(const v8::FunctionCallbackInfo<v8::Val
     METHOD_INSTANCE(RadosIoCtx_base);
     METHOD_ENTER();
 
-    METHOD_OVER(6, 4);
+    ASYNC_METHOD_OVER(6, 4);
 
     ARG(exlib::string, 0);
     ARG(exlib::string, 1);
@@ -170,7 +186,11 @@ inline void RadosIoCtx_base::s_cloneImage(const v8::FunctionCallbackInfo<v8::Val
     OPT_ARG(int64_t, 4, -1);
     OPT_ARG(int32_t, 5, 0);
 
-    hr = pInst->cloneImage(v0, v1, v2, v3, v4, v5);
+    if (!cb.IsEmpty()) {
+        pInst->acb_cloneImage(v0, v1, v2, v3, v4, v5, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_cloneImage(v0, v1, v2, v3, v4, v5);
 
     METHOD_VOID();
 }
@@ -181,11 +201,15 @@ inline void RadosIoCtx_base::s_removeImage(const v8::FunctionCallbackInfo<v8::Va
     METHOD_INSTANCE(RadosIoCtx_base);
     METHOD_ENTER();
 
-    METHOD_OVER(1, 1);
+    ASYNC_METHOD_OVER(1, 1);
 
     ARG(exlib::string, 0);
 
-    hr = pInst->removeImage(v0);
+    if (!cb.IsEmpty()) {
+        pInst->acb_removeImage(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_removeImage(v0);
 
     METHOD_VOID();
 }
@@ -196,27 +220,35 @@ inline void RadosIoCtx_base::s_renameImage(const v8::FunctionCallbackInfo<v8::Va
     METHOD_INSTANCE(RadosIoCtx_base);
     METHOD_ENTER();
 
-    METHOD_OVER(2, 2);
+    ASYNC_METHOD_OVER(2, 2);
 
     ARG(exlib::string, 0);
     ARG(exlib::string, 1);
 
-    hr = pInst->renameImage(v0, v1);
+    if (!cb.IsEmpty()) {
+        pInst->acb_renameImage(v0, v1, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_renameImage(v0, v1);
 
     METHOD_VOID();
 }
 
 inline void RadosIoCtx_base::s_listImages(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-    v8::Local<v8::Array> vr;
+    obj_ptr<NArray> vr;
 
     METHOD_NAME("RadosIoCtx.listImages");
     METHOD_INSTANCE(RadosIoCtx_base);
     METHOD_ENTER();
 
-    METHOD_OVER(0, 0);
+    ASYNC_METHOD_OVER(0, 0);
 
-    hr = pInst->listImages(vr);
+    if (!cb.IsEmpty()) {
+        pInst->acb_listImages(cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_listImages(vr);
 
     METHOD_RETURN();
 }
@@ -229,12 +261,16 @@ inline void RadosIoCtx_base::s_openImage(const v8::FunctionCallbackInfo<v8::Valu
     METHOD_INSTANCE(RadosIoCtx_base);
     METHOD_ENTER();
 
-    METHOD_OVER(2, 1);
+    ASYNC_METHOD_OVER(2, 1);
 
     ARG(exlib::string, 0);
     OPT_ARG(exlib::string, 1, "");
 
-    hr = pInst->openImage(v0, v1, vr);
+    if (!cb.IsEmpty()) {
+        pInst->acb_openImage(v0, v1, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_openImage(v0, v1, vr);
 
     METHOD_RETURN();
 }
@@ -350,7 +386,7 @@ inline void RadosIoCtx_base::s_rollbackSnap(const v8::FunctionCallbackInfo<v8::V
 
 inline void RadosIoCtx_base::s_listOids(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-    v8::Local<v8::Array> vr;
+    obj_ptr<NArray> vr;
 
     METHOD_NAME("RadosIoCtx.listOids");
     METHOD_INSTANCE(RadosIoCtx_base);
@@ -442,7 +478,7 @@ inline void RadosIoCtx_base::s_rmXattr(const v8::FunctionCallbackInfo<v8::Value>
 
 inline void RadosIoCtx_base::s_getXattrs(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-    v8::Local<v8::Object> vr;
+    obj_ptr<NObject> vr;
 
     METHOD_NAME("RadosIoCtx.getXattrs");
     METHOD_INSTANCE(RadosIoCtx_base);
