@@ -141,8 +141,7 @@ result_t RadosCluster::createPool(exlib::string poolName, int64_t auid, int32_t 
     return 0;
 }
 
-result_t RadosCluster::listPool(v8::Local<v8::Array>& retVal, AsyncEvent* ac)
-    result_t RadosCluster::listPool(obj_ptr<NArray>& retVal, AsyncEvent* ac);
+result_t RadosCluster::listPool(obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
