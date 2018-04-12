@@ -97,13 +97,6 @@ static inline int32_t load_librbd(void)
     return 0;
 }
 
-result_t rbd_close_image(rbd_image_t image)
-{
-    if (image)
-        _rbd_close(image);
-    return 0;
-}
-
 class asyncRbdCallback : public exlib::Task_base {
 public:
     asyncRbdCallback(RbdImage* pThis, AsyncEvent* ac, exlib::Locker& locker)
@@ -198,12 +191,6 @@ public:
     exlib::Locker& m_locker;
 };
 
-RbdImage::~RbdImage()
-{
-    if (m_image) {
-        asyncCall(rbd_close_image, m_image);
-    }
-}
 result_t RbdImage::read(int32_t bytes, obj_ptr<Buffer_base>& retVal, AsyncEvent* ac)
 {
     class asyncRead : public asyncRbdCallback {
@@ -346,15 +333,18 @@ result_t RbdImage::close(AsyncEvent* ac)
     hr = _rbd_close(m_image);
     if (hr < 0)
         return CHECK_ERROR(hr);
+    m_image = NULL;
 
     return 0;
+}
+void RbdImage::close()
+{
+    if (m_image)
+        _rbd_close(m_image);
 }
 
 result_t RbdImage::copyTo(Stream_base* stm, int64_t bytes, int64_t& retVal, AsyncEvent* ac)
 {
-    if (ac->isSync())
-        return CHECK_ERROR(CALL_E_NOSYNC);
-
     if (!m_image)
         return CHECK_ERROR(CALL_E_INVALID_CALL);
 
@@ -450,7 +440,6 @@ result_t RbdImage::truncate(int64_t bytes, AsyncEvent* ac)
 
 result_t RbdImage::stat(obj_ptr<Stat_base>& retVal, AsyncEvent* ac)
 {
-    result_t hr;
     obj_ptr<Stat> st = new Stat();
     int64_t sz;
     date_t time;
@@ -811,6 +800,10 @@ result_t RbdImage::write(Buffer_base* data, AsyncEvent* ac)
     return 0;
 }
 result_t RbdImage::close(AsyncEvent* ac)
+{
+    return 0;
+}
+void RbdImage::close()
 {
     return 0;
 }

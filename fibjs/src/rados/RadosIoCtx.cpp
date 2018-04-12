@@ -548,6 +548,7 @@ result_t RadosIoCtx::destroy(AsyncEvent* ac)
         _rados_ioctx_destroy(m_ioctx);
         m_ioctx = NULL;
     }
+    return 0;
 }
 
 result_t RadosIoCtx::remove(exlib::string key, AsyncEvent* ac)

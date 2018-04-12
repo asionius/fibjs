@@ -91,7 +91,6 @@ result_t RadosCluster_base::_new(exlib::string clusterName, exlib::string userNa
     if (hr < 0)
         return hr;
     obj_ptr<RadosCluster> cluster = new RadosCluster();
-    cluster->wrap(This);
 
     hr = cluster->create(clusterName, userName, confPath);
     if (hr < 0)
@@ -150,7 +149,6 @@ result_t RadosCluster::listPool(obj_ptr<NArray>& retVal, AsyncEvent* ac)
     exlib::string str;
     char *c, *t;
     obj_ptr<NArray> lp;
-    int32_t n = 0;
 
     lp = new NArray();
     size = _rados_pool_list(m_cluster, NULL, 0);

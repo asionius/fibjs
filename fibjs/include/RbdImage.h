@@ -10,12 +10,15 @@ namespace fibjs {
 class RbdImage : public RbdImage_base {
 public:
     RbdImage()
-        : m_image(NULL)
-        , m_off(0)
+        : m_off(0)
+        , m_image(NULL)
     {
     }
 
-    ~RbdImage();
+    ~RbdImage()
+    {
+        close();
+    }
 
 public:
     // Stream_base
@@ -55,12 +58,12 @@ public:
 
 public:
     result_t open(rados_ioctx_t io, exlib::string name, exlib::string snapshot);
+    void close();
 
 public:
     exlib::atomic m_off;
     rbd_image_t m_image;
     rados_ioctx_t m_ioctx;
-    exlib::string m_name;
     exlib::Locker m_lockWrite;
     exlib::Locker m_lockRead;
 };
