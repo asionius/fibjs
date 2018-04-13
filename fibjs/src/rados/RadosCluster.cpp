@@ -200,7 +200,7 @@ result_t RadosCluster::createIoCtx(exlib::string poolName, obj_ptr<RadosIoCtx_ba
 
     obj_ptr<RadosIoCtx> ioCtx = new RadosIoCtx();
 
-    hr = ioCtx->create(m_cluster, poolName);
+    hr = ioCtx->create(this, m_cluster, poolName);
     if (hr < 0)
         return CHECK_ERROR(hr);
 

@@ -258,6 +258,7 @@ result_t RadosStream::read(int32_t bytes, obj_ptr<Buffer_base>& retVal, AsyncEve
             return hr;
 
         stat->get_size(lbytes);
+        lbytes = lbytes - m_off;
     }
 
     return (new asyncRead(lbytes, retVal, this, ac, m_lockRead))->call();

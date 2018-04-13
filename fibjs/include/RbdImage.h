@@ -50,7 +50,7 @@ public:
     virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t rollbackSnap(exlib::string snapname, AsyncEvent* ac);
-    virtual result_t listSnaps(v8::Local<v8::Array>& retVal, AsyncEvent* ac);
+    virtual result_t listSnaps(obj_ptr<NArray>& retVal, AsyncEvent* ac);
     virtual result_t protectSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t unprotectSnap(exlib::string snapname, AsyncEvent* ac);
     virtual result_t setSnap(exlib::string snapname, AsyncEvent* ac);

@@ -619,7 +619,7 @@ result_t RadosIoCtx::remove(exlib::string key, AsyncEvent* ac)
     return 0;
 }
 
-result_t RadosIoCtx::create(rados_t cluster, exlib::string poolName)
+result_t RadosIoCtx::create(obj_ptr<RadosCluster_base> c, rados_t cluster, exlib::string poolName)
 {
     result_t hr;
 
@@ -631,6 +631,7 @@ result_t RadosIoCtx::create(rados_t cluster, exlib::string poolName)
     if (hr < 0)
         return CHECK_ERROR(hr);
 
+    m_cluster = c;
     return 0;
 }
 

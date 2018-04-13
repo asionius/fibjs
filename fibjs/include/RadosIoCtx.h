@@ -1,4 +1,5 @@
 #include "ifs/RadosIoCtx.h"
+#include "RadosCluster.h"
 #include <rados/librados.h>
 #include <rados/librbd.h>
 #include <pcre/pcre.h>
@@ -43,10 +44,12 @@ public:
     virtual result_t destroy(AsyncEvent* ac);
 
 public:
-    result_t create(rados_t cluster, exlib::string poolName);
+    result_t create(obj_ptr<RadosCluster_base> c, rados_t cluster, exlib::string poolName);
 
 public:
     rados_ioctx_t m_ioctx;
+private:
+    obj_ptr<RadosCluster_base> m_cluster;
 };
 }
 

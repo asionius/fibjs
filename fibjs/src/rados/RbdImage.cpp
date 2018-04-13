@@ -259,7 +259,7 @@ result_t RbdImage::read(int32_t bytes, obj_ptr<Buffer_base>& retVal, AsyncEvent*
         if (hr < 0)
             return CHECK_ERROR(hr);
 
-        lbytes = bytes;
+        lbytes = bytes - m_off;
     }
 
     return (new asyncRead(lbytes, retVal, this, ac, m_lockRead))->call();
@@ -690,7 +690,7 @@ result_t RbdImage::rollbackSnap(exlib::string snapname, AsyncEvent* ac)
     return 0;
 }
 
-result_t RbdImage::listSnaps(v8::Local<v8::Array>& retVal, AsyncEvent* ac)
+result_t RbdImage::listSnaps(obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
@@ -703,8 +703,9 @@ result_t RbdImage::listSnaps(v8::Local<v8::Array>& retVal, AsyncEvent* ac)
     int32_t i;
     rbd_snap_info_t snaps[max_size];
     exlib::string snapname;
-    Isolate* isolate = holder();
-    retVal = v8::Array::New(isolate->m_isolate);
+    obj_ptr<NArray> oa;
+
+    oa = new NArray();
 
     hr = _rbd_snap_list(m_image, snaps, &max_size);
     if (hr < 0)
@@ -712,9 +713,10 @@ result_t RbdImage::listSnaps(v8::Local<v8::Array>& retVal, AsyncEvent* ac)
 
     for (i = 0; i < hr; i++) {
         snapname = snaps[i].name;
-        retVal->Set(i, isolate->NewString(snapname));
+        oa->append(snapname);
     }
 
+    retVal = oa;
     return 0;
 }
 

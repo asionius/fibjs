@@ -33,7 +33,7 @@ public:
     virtual result_t createSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t removeSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t rollbackSnap(exlib::string snapname, AsyncEvent* ac) = 0;
-    virtual result_t listSnaps(v8::Local<v8::Array>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t listSnaps(obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
     virtual result_t protectSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t unprotectSnap(exlib::string snapname, AsyncEvent* ac) = 0;
     virtual result_t setSnap(exlib::string snapname, AsyncEvent* ac) = 0;
@@ -71,7 +71,7 @@ public:
     ASYNC_MEMBER1(RbdImage_base, createSnap, exlib::string);
     ASYNC_MEMBER1(RbdImage_base, removeSnap, exlib::string);
     ASYNC_MEMBER1(RbdImage_base, rollbackSnap, exlib::string);
-    ASYNC_MEMBERVALUE1(RbdImage_base, listSnaps, v8::Local<v8::Array>);
+    ASYNC_MEMBERVALUE1(RbdImage_base, listSnaps, obj_ptr<NArray>);
     ASYNC_MEMBER1(RbdImage_base, protectSnap, exlib::string);
     ASYNC_MEMBER1(RbdImage_base, unprotectSnap, exlib::string);
     ASYNC_MEMBER1(RbdImage_base, setSnap, exlib::string);
@@ -264,7 +264,7 @@ inline void RbdImage_base::s_rollbackSnap(const v8::FunctionCallbackInfo<v8::Val
 
 inline void RbdImage_base::s_listSnaps(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-    v8::Local<v8::Array> vr;
+    obj_ptr<NArray> vr;
 
     METHOD_NAME("RbdImage.listSnaps");
     METHOD_INSTANCE(RbdImage_base);
