@@ -88,7 +88,7 @@ inline void close_librados()
 result_t rados_base::create(exlib::string clusterName, exlib::string userName, exlib::string confPath, obj_ptr<RadosCluster_base>& retVal, AsyncEvent* ac)
 {
     if (ac->isSync())
-        return CHECK_ERROR(CALL_E_NOSYNC);
+        return CHECK_ERROR(CALL_E_LONGSYNC);
 
     result_t hr;
 
