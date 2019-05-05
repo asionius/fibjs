@@ -40,6 +40,10 @@ public:
     virtual result_t resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);
 
 private:
+    result_t resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac);
+    result_t resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac);
+
+private:
     exlib::Locker m_lockRead;
 };
 }

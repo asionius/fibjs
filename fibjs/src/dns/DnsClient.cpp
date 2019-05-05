@@ -93,7 +93,7 @@ public:
     exlib::Locker& m_locker;
 };
 
-static const char* AddressToString(const void* vaddr, int len)
+static exlib::string AddressToString(const void* vaddr, int len)
 {
     const uint8_t* addr = (const uint8_t*)vaddr;
     exlib::string s;
@@ -122,7 +122,7 @@ static const char* AddressToString(const void* vaddr, int len)
         }
         s = s + "!" + s1 + "!";
     }
-    return s.c_str();
+    return s;
 }
 
 class _acAres : public exlib::OSThread {
@@ -150,8 +150,8 @@ public:
         Runtime rt(NULL);
         while (1) {
             s_aresChannel.m_sem.wait();
-            while (s_aresChannel.m_sem.trywait())
-                ;
+            // while (s_aresChannel.m_sem.trywait())
+            // ;
             FD_ZERO(&m_readers);
             FD_ZERO(&m_writers);
             nfds = ares_fds(s_aresChannel.m_channel, &m_readers, &m_writers);
@@ -183,8 +183,10 @@ result_t DnsClient_base::_new(obj_ptr<DnsClient_base>& retVal, v8::Local<v8::Obj
 
 result_t DnsClient::resolve(exlib::string host, exlib::string type, Variant& retVal, AsyncEvent* ac)
 {
+    if (ac->isSync())
+        return CHECK_ERROR(CALL_E_NOSYNC);
+
     result_t hr;
-    Isolate* isolate = Isolate::current();
 
     obj_ptr<NObject> oRet = new NObject();
     obj_ptr<NArray> aRet = new NArray();
@@ -202,11 +204,11 @@ result_t DnsClient::resolve(exlib::string host, exlib::string type, Variant& ret
         retVal = aRet;
         return hr;
     } else if (type == "A") {
-        hr = resolve4(host, v8::Object::New(isolate->m_isolate), aRet, ac);
+        hr = resolve4(host, false, aRet, ac);
         retVal = aRet;
         return hr;
     } else if (type == "AAAA") {
-        hr = resolve6(host, v8::Object::New(isolate->m_isolate), aRet, ac);
+        hr = resolve6(host, false, aRet, ac);
         retVal = aRet;
         return hr;
     } else if (type == "CNAME") {
@@ -236,6 +238,52 @@ result_t DnsClient::resolve(exlib::string host, exlib::string type, Variant& ret
 
 result_t DnsClient::resolve4(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
+    bool v;
+    if (ac->isSync()) {
+        result_t hr;
+        Isolate* isolate = Isolate::current();
+
+        hr = GetConfigValue(isolate->m_isolate, options, "ttl", v);
+        if (hr == CALL_E_PARAMNOTOPTIONAL)
+            v = false;
+        else if (hr < 0)
+            return CHECK_ERROR(hr);
+
+        ac->m_ctx.resize(1);
+        ac->m_ctx[0] = v;
+        return CHECK_ERROR(CALL_E_NOSYNC);
+    }
+
+    v = ac->m_ctx[0];
+
+    return resolve4(host, v, retVal, ac);
+}
+
+result_t DnsClient::resolve6(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+{
+    bool v;
+    if (ac->isSync()) {
+        result_t hr;
+        Isolate* isolate = Isolate::current();
+
+        hr = GetConfigValue(isolate->m_isolate, options, "ttl", v);
+        if (hr == CALL_E_PARAMNOTOPTIONAL)
+            v = false;
+        else if (hr < 0)
+            return CHECK_ERROR(hr);
+
+        ac->m_ctx.resize(1);
+        ac->m_ctx[0] = v;
+        return CHECK_ERROR(CALL_E_NOSYNC);
+    }
+
+    v = ac->m_ctx[0];
+
+    return resolve6(host, v, retVal, ac);
+}
+
+result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+{
     class asyncResolve4 : public asyncDNSQuery {
     public:
         asyncResolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
@@ -245,6 +293,7 @@ result_t DnsClient::resolve4(exlib::string host, v8::Local<v8::Object> options, 
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -320,23 +369,13 @@ result_t DnsClient::resolve4(exlib::string host, v8::Local<v8::Object> options, 
         obj_ptr<NArray> m_retVal;
     };
 
-    result_t hr;
-    bool v;
-    Isolate* isolate = Isolate::current();
-
-    hr = GetConfigValue(isolate->m_isolate, options, "ttl", v);
-    if (hr == CALL_E_PARAMNOTOPTIONAL)
-        v = false;
-    else if (hr < 0)
-        return CHECK_ERROR(hr);
-
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
-    return (new asyncResolve4(host, v, retVal, ac, m_lockRead))->call();
+    return (new asyncResolve4(host, ttl, retVal, ac, m_lockRead))->call();
 }
 
-result_t DnsClient::resolve6(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
     class asyncResolve6 : public asyncDNSQuery {
     public:
@@ -347,6 +386,7 @@ result_t DnsClient::resolve6(exlib::string host, v8::Local<v8::Object> options, 
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -422,20 +462,10 @@ result_t DnsClient::resolve6(exlib::string host, v8::Local<v8::Object> options, 
         obj_ptr<NArray> m_retVal;
     };
 
-    result_t hr;
-    bool v;
-    Isolate* isolate = Isolate::current();
-
-    hr = GetConfigValue(isolate->m_isolate, options, "ttl", v);
-    if (hr == CALL_E_PARAMNOTOPTIONAL)
-        v = false;
-    else if (hr < 0)
-        return CHECK_ERROR(hr);
-
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
-    return (new asyncResolve6(host, v, retVal, ac, m_lockRead))->call();
+    return (new asyncResolve6(host, ttl, retVal, ac, m_lockRead))->call();
 }
 
 result_t DnsClient::resolveCname(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
@@ -448,6 +478,7 @@ result_t DnsClient::resolveCname(exlib::string host, obj_ptr<NArray>& retVal, As
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -544,6 +575,7 @@ result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, As
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -627,6 +659,7 @@ result_t DnsClient::resolveNs(exlib::string host, obj_ptr<NArray>& retVal, Async
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -709,6 +742,7 @@ result_t DnsClient::resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -787,7 +821,7 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
     public:
         class ResolveSoaResult : public NObject {
         public:
-            ResolveSoaResult(ares_soa_reply* soa_out)
+            ResolveSoaResult(struct ares_soa_reply* soa_out)
             {
                 add("nsname", soa_out->nsname);
                 add("hostmaster", soa_out->hostmaster);
@@ -806,6 +840,7 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -887,6 +922,7 @@ result_t DnsClient::resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -997,6 +1033,7 @@ result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
@@ -1090,6 +1127,7 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
+            , m_retVal(retVal)
         {
         }
 
