@@ -16,6 +16,16 @@ class DnsClient : public DnsClient_base {
     FIBER_FREE();
 
 public:
+    class ResolveResult : public NObject {
+    public:
+        ResolveResult(int ttl, exlib::string ip)
+        {
+            add("address", ip);
+            add("ttl", ttl);
+        }
+    };
+
+public:
     virtual result_t resolve(exlib::string host, exlib::string type, Variant& retVal, AsyncEvent* ac);
     virtual result_t resolve4(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac);
     virtual result_t resolve6(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac);
@@ -28,6 +38,9 @@ public:
     virtual result_t resolveCname(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);
     virtual result_t resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);
     virtual result_t resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);
+
+private:
+    exlib::Locker m_lockRead;
 };
 }
 
