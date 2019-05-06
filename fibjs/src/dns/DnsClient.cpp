@@ -1326,16 +1326,203 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
 }
 result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    result_t hr;
+    class asyncResolveAny : public AsyncState {
+    public:
+        asyncResolveAny(DnsClient* dc, exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
+            , m_dc(dc)
+            , m_host(host)
+            , m_retVal(retVal)
+        {
+            set(resolve4);
+        }
+
+        static int32_t resolve4(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolve6);
+            return pThis->m_dc->resolve4(pThis->m_host, true, pThis->m_retVal4, pThis);
+        }
+
+        static int32_t resolve6(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolveMx);
+            return pThis->m_dc->resolve6(pThis->m_host, true, pThis->m_retVal6, pThis);
+        }
+
+        static int32_t resolveMx(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolveTxt);
+            return pThis->m_dc->resolveMx(pThis->m_host, pThis->m_retValMx, pThis);
+        }
+
+        static int32_t resolveTxt(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolveSrv);
+            return pThis->m_dc->resolveTxt(pThis->m_host, pThis->m_retValTxt, pThis);
+        }
+
+        static int32_t resolveSrv(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolveNs);
+            return pThis->m_dc->resolveSrv(pThis->m_host, pThis->m_retValSrv, pThis);
+        }
+
+        static int32_t resolveNs(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolveSoa);
+            return pThis->m_dc->resolveNs(pThis->m_host, pThis->m_retValNs, pThis);
+        }
+
+        static int32_t resolveSoa(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolveCname);
+            return pThis->m_dc->resolveSoa(pThis->m_host, pThis->m_retValSoa, pThis);
+        }
+
+        static int32_t resolveCname(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolveNaptr);
+            return pThis->m_dc->resolveCname(pThis->m_host, pThis->m_retValCname, pThis);
+        }
+
+        static int32_t resolveNaptr(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(resolvePtr);
+            return pThis->m_dc->resolveNaptr(pThis->m_host, pThis->m_retValNaptr, pThis);
+        }
+
+        static int32_t resolvePtr(AsyncState* pState, int32_t n)
+        {
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            pThis->set(end);
+            return pThis->m_dc->resolvePtr(pThis->m_host, pThis->m_retValPtr, pThis);
+        }
+
+        static int32_t end(AsyncState* pState, int32_t n)
+        {
+            int32_t len;
+            asyncResolveAny* pThis = (asyncResolveAny*)pState;
+            Variant v;
+            obj_ptr<NObject> t_o;
+            obj_ptr<NArray> t_a;
+
+            pThis->m_retVal4->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retVal4->_indexed_getter(i, v);
+                t_o = (NObject*)v.object();
+                t_o->add("type", "A");
+                pThis->m_retVal->append(t_o);
+            }
+
+            pThis->m_retVal6->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retVal6->_indexed_getter(i, v);
+                t_o = (NObject*)v.object();
+                t_o->add("type", "AAAA");
+                pThis->m_retVal->append(t_o);
+            }
+
+            pThis->m_retValMx->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retValMx->_indexed_getter(i, v);
+                t_o = (NObject*)v.object();
+                t_o->add("type", "MX");
+                pThis->m_retVal->append(t_o);
+            }
+
+            pThis->m_retValTxt->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retValTxt->_indexed_getter(i, v);
+                t_a = (NArray*)v.object();
+                t_o = new NObject();
+                t_o->add("type", "TXT");
+                t_o->add("entries", t_a);
+                pThis->m_retVal->append(t_o);
+            }
+
+            pThis->m_retValSrv->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retValSrv->_indexed_getter(i, v);
+                t_o = (NObject*)v.object();
+                t_o->add("type", "SRV");
+                pThis->m_retVal->append(t_o);
+            }
+
+            pThis->m_retValNs->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retValNs->_indexed_getter(i, v);
+                exlib::string str = v.string();
+                t_o->add("type", "NS");
+                t_o->add("value", str);
+                pThis->m_retVal->append(t_o);
+            }
+
+            pThis->m_retValCname->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retValCname->_indexed_getter(i, v);
+                exlib::string str = v.string();
+                t_o->add("type", "CNAME");
+                t_o->add("value", str);
+                pThis->m_retVal->append(t_o);
+            }
+
+            pThis->m_retValPtr->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retValPtr->_indexed_getter(i, v);
+                exlib::string str = v.string();
+                t_o->add("type", "PTR");
+                t_o->add("value", str);
+                pThis->m_retVal->append(t_o);
+            }
+
+            pThis->m_retValNaptr->get_length(len);
+            for (int32_t i = 0; i < len; i++) {
+                pThis->m_retValNaptr->_indexed_getter(i, v);
+                t_o = (NObject*)v.object();
+                t_o->add("type", "NAPTR");
+                pThis->m_retVal->append(t_o);
+            }
+
+            // pThis->m_retValSoa->get_length(len);
+            // for (int32_t i = 0; i < len; i++) {
+            //     pThis->m_retValSoa->_indexed_getter(i, v);
+            //     exlib::string str = v.string();
+            //     t_o->add("type", "SRV");
+            //     t_o->add("value", str);
+            //     pThis->m_retVal->append(t_o);
+            // }
+            return pThis->done();
+        }
+
+    public:
+        obj_ptr<DnsClient> m_dc;
+        exlib::string m_host;
+        obj_ptr<NArray> m_retVal;
+        obj_ptr<NArray> m_retVal4;
+        obj_ptr<NArray> m_retVal6;
+        obj_ptr<NArray> m_retValMx;
+        obj_ptr<NArray> m_retValTxt;
+        obj_ptr<NArray> m_retValSrv;
+        obj_ptr<NArray> m_retValNs;
+        obj_ptr<NObject> m_retValSoa;
+        obj_ptr<NArray> m_retValCname;
+        obj_ptr<NArray> m_retValNaptr;
+        obj_ptr<NArray> m_retValPtr;
+    };
+
     if (ac->isSync())
-        return CHECK_ERROR(CALL_E_NOSYNC);
+        return CHECK_ERROR(CALL_E_NOASYNC);
 
     retVal = new NArray();
-
-    obj_ptr<NArray> retVal4 = new NArray();
-    hr = cc_resolve4(host, retVal4);
-    if (hr < 0)
-        return hr;
-    return 0;
+    return (new asyncResolveAny(this, host, retVal, ac))->post(0);
 }
 }
