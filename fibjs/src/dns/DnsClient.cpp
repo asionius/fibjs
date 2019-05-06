@@ -36,19 +36,14 @@ public:
         , m_locker(locker)
     {
     }
+    virtual ~asyncDNSQuery()
+    {
+    }
 
 public:
-    virtual void suspend()
-    {
-    }
-
-    virtual void suspend(exlib::spinlock& lock)
-    {
-        lock.unlock();
-    }
-
     virtual void resume()
     {
+        process2();
     }
 
 public:
@@ -68,6 +63,11 @@ public:
     }
 
     virtual int32_t process()
+    {
+        return 0;
+    }
+
+    virtual int32_t process2()
     {
         return 0;
     }
@@ -145,21 +145,24 @@ public:
     virtual void Run()
     {
         int32_t nfds;
-        timeval tv, *tvp;
+        timeval tv, *tvp, tv1;
+
+        tv1.tv_sec = 0;
+        tv1.tv_usec = 100000;
 
         Runtime rt(NULL);
         while (1) {
             s_aresChannel.m_sem.wait();
-            // while (s_aresChannel.m_sem.trywait())
-            // ;
-            FD_ZERO(&m_readers);
-            FD_ZERO(&m_writers);
-            nfds = ares_fds(s_aresChannel.m_channel, &m_readers, &m_writers);
-            if (nfds == 0)
-                continue;
-            tvp = ares_timeout(s_aresChannel.m_channel, NULL, &tv);
-            select(nfds, &m_readers, &m_writers, NULL, tvp);
-            ares_process(s_aresChannel.m_channel, &m_readers, &m_writers);
+            while (1) {
+                FD_ZERO(&m_readers);
+                FD_ZERO(&m_writers);
+                nfds = ares_fds(s_aresChannel.m_channel, &m_readers, &m_writers);
+                if (nfds == 0)
+                    break;
+                tvp = ares_timeout(s_aresChannel.m_channel, &tv1, &tv);
+                select(nfds, &m_readers, &m_writers, NULL, tvp);
+                ares_process(s_aresChannel.m_channel, &m_readers, &m_writers);
+            }
         }
     }
 
@@ -236,6 +239,11 @@ result_t DnsClient::resolve(exlib::string host, exlib::string type, Variant& ret
     return CHECK_ERROR(CALL_E_INVALIDARG);
 }
 
+result_t DnsClient::resolve4(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+{
+    return resolve4(host, false, retVal, ac);
+}
+
 result_t DnsClient::resolve4(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
     bool v;
@@ -254,9 +262,13 @@ result_t DnsClient::resolve4(exlib::string host, v8::Local<v8::Object> options, 
         return CHECK_ERROR(CALL_E_NOSYNC);
     }
 
-    v = ac->m_ctx[0];
-
+    v = ac->m_ctx[0].boolVal();
     return resolve4(host, v, retVal, ac);
+}
+
+result_t DnsClient::resolve6(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+{
+    return resolve6(host, false, retVal, ac);
 }
 
 result_t DnsClient::resolve6(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac)
@@ -277,7 +289,7 @@ result_t DnsClient::resolve6(exlib::string host, v8::Local<v8::Object> options, 
         return CHECK_ERROR(CALL_E_NOSYNC);
     }
 
-    v = ac->m_ctx[0];
+    v = ac->m_ctx[0].boolVal();
 
     return resolve6(host, v, retVal, ac);
 }
@@ -309,6 +321,17 @@ result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retV
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_a, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -372,6 +395,7 @@ result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retV
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolve4(host, ttl, retVal, ac, m_lockRead))->call();
 }
 
@@ -402,6 +426,17 @@ result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retV
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_aaaa, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -465,6 +500,7 @@ result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retV
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolve6(host, ttl, retVal, ac, m_lockRead))->call();
 }
 
@@ -494,6 +530,17 @@ result_t DnsClient::resolveCname(exlib::string host, obj_ptr<NArray>& retVal, As
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_cname, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -548,6 +595,7 @@ result_t DnsClient::resolveCname(exlib::string host, obj_ptr<NArray>& retVal, As
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolveCname(host, retVal, ac, m_lockRead))->call();
 }
 
@@ -591,6 +639,17 @@ result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, As
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_naptr, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -646,6 +705,7 @@ result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, As
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolveNaptr(host, retVal, ac, m_lockRead))->call();
 }
 
@@ -675,6 +735,17 @@ result_t DnsClient::resolveNs(exlib::string host, obj_ptr<NArray>& retVal, Async
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_ns, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -729,6 +800,7 @@ result_t DnsClient::resolveNs(exlib::string host, obj_ptr<NArray>& retVal, Async
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolveNs(host, retVal, ac, m_lockRead))->call();
 }
 
@@ -758,6 +830,17 @@ result_t DnsClient::resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_ptr, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -812,27 +895,13 @@ result_t DnsClient::resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, Asyn
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolvePtr(host, retVal, ac, m_lockRead))->call();
 }
 
 result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, AsyncEvent* ac)
 {
     class asyncResolveSoa : public asyncDNSQuery {
-    public:
-        class ResolveSoaResult : public NObject {
-        public:
-            ResolveSoaResult(struct ares_soa_reply* soa_out)
-            {
-                add("nsname", soa_out->nsname);
-                add("hostmaster", soa_out->hostmaster);
-                add("serial", (int)soa_out->serial);
-                add("refresh", (int)soa_out->refresh);
-                add("retry", (int)soa_out->retry);
-                add("expire", (int)soa_out->expire);
-                add("minttl", (int)soa_out->minttl);
-            }
-        };
-
     public:
         asyncResolveSoa(exlib::string host, obj_ptr<NObject>& retVal, AsyncEvent* ac, exlib::Locker& locker)
             : asyncDNSQuery(ac, locker)
@@ -856,6 +925,17 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_soa, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -890,7 +970,14 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
                 return;
             }
 
-            pThis->m_retVal = new ResolveSoaResult(soa_out);
+            pThis->m_retVal->add("nsname", soa_out->nsname);
+            pThis->m_retVal->add("hostmaster", soa_out->hostmaster);
+            pThis->m_retVal->add("serial", (int)soa_out->serial);
+            pThis->m_retVal->add("refresh", (int)soa_out->refresh);
+            pThis->m_retVal->add("retry", (int)soa_out->retry);
+            pThis->m_retVal->add("expire", (int)soa_out->expire);
+            pThis->m_retVal->add("minttl", (int)soa_out->minttl);
+
             ares_free_data(soa_out);
 
             if (pThis->m_cbSync)
@@ -909,6 +996,7 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NObject();
     return (new asyncResolveSoa(host, retVal, ac, m_lockRead))->call();
 }
 
@@ -938,6 +1026,17 @@ result_t DnsClient::resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_txt, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -1008,6 +1107,7 @@ result_t DnsClient::resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, Asyn
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolveTxt(host, retVal, ac, m_lockRead))->call();
 }
 
@@ -1049,6 +1149,17 @@ result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_srv, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -1104,6 +1215,7 @@ result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, Asyn
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolveSrv(host, retVal, ac, m_lockRead))->call();
 }
 
@@ -1143,6 +1255,17 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
             m_cbSync = false;
             s_aresChannel.m_sem.post();
             return CHECK_ERROR(CALL_E_PENDDING);
+        }
+
+        virtual result_t process2()
+        {
+            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_mx, callback, this);
+            if (!m_cbAsync)
+                onready();
+
+            m_cbSync = false;
+            s_aresChannel.m_sem.post();
+            return CALL_E_PENDDING;
         }
 
         virtual void proc()
@@ -1198,10 +1321,21 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
     if (ac->isSync())
         return CHECK_ERROR(CALL_E_NOSYNC);
 
+    retVal = new NArray();
     return (new asyncResolveMx(host, retVal, ac, m_lockRead))->call();
 }
 result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
+    result_t hr;
+    if (ac->isSync())
+        return CHECK_ERROR(CALL_E_NOSYNC);
+
+    retVal = new NArray();
+
+    obj_ptr<NArray> retVal4 = new NArray();
+    hr = cc_resolve4(host, retVal4);
+    if (hr < 0)
+        return hr;
     return 0;
 }
 }

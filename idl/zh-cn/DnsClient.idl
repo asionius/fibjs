@@ -48,6 +48,12 @@ interface DnsClient : object
     */
     NArray resolve4(String host, Object options = {}) async;
 
+   /*! @brief 解析IPv4地址
+     @param host 指定要解析的主机名
+     @return 返回一个数组 (eg. ['1.2.3.4', '2.3.4.5'])
+    */
+    NArray resolve4(String host) async;
+
     /*! @brief 解析IPv6地址
      @param host 指定要解析的主机名
      @param options 解析参数
@@ -62,6 +68,12 @@ interface DnsClient : object
      @return 返回一个数组 (eg. ['2404:6800:4008:801::200e', '0:1:2:3:4:5:6:7']) 如果 ttl 为 true (eg. [{address: '2404:6800:4008:801::200e', ttl: 66}])
     */
     NArray resolve6(String host, Object options = {}) async;
+
+   /*! @brief 解析IPv6地址
+     @param host 指定要解析的主机名
+     @return 返回一个数组 (eg. ['2404:6800:4008:801::200e', '0:1:2:3:4:5:6:7'])
+    */
+    NArray resolve6(String host) async;
 
     /*! @brief 解析所有记录
      @param host 指定要解析的主机名

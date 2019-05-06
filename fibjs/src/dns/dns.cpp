@@ -31,9 +31,19 @@ result_t dns_base::resolve4(exlib::string host, v8::Local<v8::Object> options, o
     return get_DnsClient(ac->isolate())->resolve4(host, options, retVal, ac);
 }
 
+result_t dns_base::resolve4(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+{
+    return get_DnsClient(ac->isolate())->resolve4(host, retVal, ac);
+}
+
 result_t dns_base::resolve6(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
     return get_DnsClient(ac->isolate())->resolve6(host, options, retVal, ac);
+}
+
+result_t dns_base::resolve6(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+{
+    return get_DnsClient(ac->isolate())->resolve6(host, retVal, ac);
 }
 
 result_t dns_base::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)

@@ -28,7 +28,9 @@ public:
 public:
     virtual result_t resolve(exlib::string host, exlib::string type, Variant& retVal, AsyncEvent* ac);
     virtual result_t resolve4(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac);
+    virtual result_t resolve4(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);
     virtual result_t resolve6(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac);
+    virtual result_t resolve6(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);
     virtual result_t resolveAny(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);
     virtual result_t resolveMx(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);
     virtual result_t resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac);

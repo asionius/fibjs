@@ -24,7 +24,9 @@ public:
     static result_t _new(obj_ptr<DnsClient_base>& retVal, v8::Local<v8::Object> This = v8::Local<v8::Object>());
     virtual result_t resolve(exlib::string host, exlib::string type, Variant& retVal, AsyncEvent* ac) = 0;
     virtual result_t resolve4(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t resolve4(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
     virtual result_t resolve6(exlib::string host, v8::Local<v8::Object> options, obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
+    virtual result_t resolve6(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
     virtual result_t resolveAny(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
     virtual result_t resolveMx(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
     virtual result_t resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac) = 0;
@@ -57,7 +59,9 @@ public:
 public:
     ASYNC_MEMBERVALUE3(DnsClient_base, resolve, exlib::string, exlib::string, Variant);
     ASYNC_MEMBERVALUE3(DnsClient_base, resolve4, exlib::string, v8::Local<v8::Object>, obj_ptr<NArray>);
+    ASYNC_MEMBERVALUE2(DnsClient_base, resolve4, exlib::string, obj_ptr<NArray>);
     ASYNC_MEMBERVALUE3(DnsClient_base, resolve6, exlib::string, v8::Local<v8::Object>, obj_ptr<NArray>);
+    ASYNC_MEMBERVALUE2(DnsClient_base, resolve6, exlib::string, obj_ptr<NArray>);
     ASYNC_MEMBERVALUE2(DnsClient_base, resolveAny, exlib::string, obj_ptr<NArray>);
     ASYNC_MEMBERVALUE2(DnsClient_base, resolveMx, exlib::string, obj_ptr<NArray>);
     ASYNC_MEMBERVALUE2(DnsClient_base, resolveTxt, exlib::string, obj_ptr<NArray>);
@@ -172,6 +176,16 @@ inline void DnsClient_base::s_resolve4(const v8::FunctionCallbackInfo<v8::Value>
     } else
         hr = pInst->ac_resolve4(v0, v1, vr);
 
+    ASYNC_METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_resolve4(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_resolve4(v0, vr);
+
     METHOD_RETURN();
 }
 
@@ -193,6 +207,16 @@ inline void DnsClient_base::s_resolve6(const v8::FunctionCallbackInfo<v8::Value>
         hr = CALL_RETURN_NULL;
     } else
         hr = pInst->ac_resolve6(v0, v1, vr);
+
+    ASYNC_METHOD_OVER(1, 1);
+
+    ARG(exlib::string, 0);
+
+    if (!cb.IsEmpty()) {
+        pInst->acb_resolve6(v0, cb);
+        hr = CALL_RETURN_NULL;
+    } else
+        hr = pInst->ac_resolve6(v0, vr);
 
     METHOD_RETURN();
 }
