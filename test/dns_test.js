@@ -2,6 +2,7 @@ var test = require("test");
 test.setup();
 
 var dns = require("dns");
+var coroutine = require("coroutine");
 var resolver, result;
 
 var ipReg = "^((25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d|\\d)\\.){3}(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d|\\d)$"
@@ -264,6 +265,15 @@ describe('dns', () => {
             assert.ok(err);
             assert.notOk(result);
         });
+        // parallel
+        var resolvers = [new dns.Resolver()]
+        resolvers.push(new dns.Resolver())
+        resolvers.push(new dns.Resolver())
+        resolvers.push(new dns.Resolver())
+        coroutine.parallel(resolvers, (resolver) => {
+            result = resolver.resolve4('qq.com')
+            assert.ok(result.length > 0);
+        })
     });
 
     it('resolve6', () => {
@@ -415,6 +425,66 @@ describe('dns', () => {
             assert.notOk(result);
         });
     });
+
+    it('resolveAny', () => {
+        result = dns.resolveAny('fibjs.org');
+        assert.ok(result.length > 0);
+        var types = ["A", "AAAA", "MX", "TXT", "SRV", "NS", "CNAME", "PTR", "NAPTR", "SOA"]
+        var validator = [(data) => {
+            assert.equal(data.type, 'A')
+            assert.ok(typeof data.address === 'string');
+            assert.ok(typeof data.ttl === 'number');
+        }, (data) => {
+            assert.equal(data.type, 'AAAA')
+            assert.ok(typeof data.address === 'string');
+            assert.ok(typeof data.ttl === 'number');
+        }, (data) => {
+            assert.equal(data.type, 'MX')
+            assert.ok(typeof data.exchange === 'string');
+            assert.ok(typeof data.priority === 'number');
+        }, (data) => {
+            assert.equal(data.type, 'TXT')
+            assert.ok(typeof data.entries === 'object');
+            assert.equal(data.entries.length, 1);
+        }, (data) => {
+            assert.equal(data.type, 'SRV')
+            assert.ok(typeof data.name === 'string');
+            assert.ok(typeof data.port === 'number');
+            assert.ok(typeof data.priority === 'number');
+            assert.ok(typeof data.weight === 'number');
+        }, (data) => {
+            assert.equal(data.type, 'NS')
+            assert.ok(typeof data.value === 'string');
+        }, (data) => {
+            assert.equal(data.type, 'CNAME')
+            assert.ok(typeof data.value === 'string');
+        }, (data) => {
+            assert.equal(data.type, 'PTR')
+            assert.ok(typeof data.value === 'string');
+        }, (data) => {
+            assert.equal(data.type, 'NAPTR')
+            assert.ok(typeof data.flags === 'string');
+            assert.ok(typeof data.service === 'string');
+            assert.ok(typeof data.regexp === 'string');
+            assert.ok(typeof data.replacement === 'string');
+            assert.ok(typeof data.order === 'number');
+            assert.ok(typeof data.preference === 'number');
+        }, (data) => {
+            assert.equal(data.type, 'SOA')
+            assert.ok(typeof data.nsname === 'string');
+            assert.ok(typeof data.hostmaster === 'string');
+            assert.ok(typeof data.serial === 'number');
+            assert.ok(typeof data.refresh === 'number');
+            assert.ok(typeof data.retry === 'number');
+            assert.ok(typeof data.expire === 'number');
+            assert.ok(typeof data.minttl === 'number');
+        }]
+        result = dns.resolveAny('google.com')
+        assert.ok(result.length > 0)
+        result.forEach((r) => {
+            validator[types.indexOf(r.type)](r)
+        })
+    })
 });
 
 require.main === module && test.run(console.DEBUG);

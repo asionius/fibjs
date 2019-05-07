@@ -1330,6 +1330,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
     public:
         asyncResolveAny(DnsClient* dc, exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
             : AsyncState(ac)
+            , m_error(false)
             , m_dc(dc)
             , m_host(host)
             , m_retVal(retVal)
@@ -1348,6 +1349,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(resolveMx);
+            pThis->m_error = false;
             return pThis->m_dc->resolve6(pThis->m_host, true, pThis->m_retVal6, pThis);
         }
 
@@ -1355,6 +1357,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(resolveTxt);
+            pThis->m_error = false;
             return pThis->m_dc->resolveMx(pThis->m_host, pThis->m_retValMx, pThis);
         }
 
@@ -1362,6 +1365,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(resolveSrv);
+            pThis->m_error = false;
             return pThis->m_dc->resolveTxt(pThis->m_host, pThis->m_retValTxt, pThis);
         }
 
@@ -1369,6 +1373,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(resolveNs);
+            pThis->m_error = false;
             return pThis->m_dc->resolveSrv(pThis->m_host, pThis->m_retValSrv, pThis);
         }
 
@@ -1376,6 +1381,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(resolveSoa);
+            pThis->m_error = false;
             return pThis->m_dc->resolveNs(pThis->m_host, pThis->m_retValNs, pThis);
         }
 
@@ -1383,6 +1389,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(resolveCname);
+            pThis->m_error = false;
             return pThis->m_dc->resolveSoa(pThis->m_host, pThis->m_retValSoa, pThis);
         }
 
@@ -1390,6 +1397,10 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(resolveNaptr);
+            if (pThis->m_error) {
+                pThis->m_retValSoa = NULL;
+                pThis->m_error = false;
+            }
             return pThis->m_dc->resolveCname(pThis->m_host, pThis->m_retValCname, pThis);
         }
 
@@ -1397,6 +1408,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(resolvePtr);
+            pThis->m_error = false;
             return pThis->m_dc->resolveNaptr(pThis->m_host, pThis->m_retValNaptr, pThis);
         }
 
@@ -1404,6 +1416,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         {
             asyncResolveAny* pThis = (asyncResolveAny*)pState;
             pThis->set(end);
+            pThis->m_error = false;
             return pThis->m_dc->resolvePtr(pThis->m_host, pThis->m_retValPtr, pThis);
         }
 
@@ -1461,6 +1474,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             for (int32_t i = 0; i < len; i++) {
                 pThis->m_retValNs->_indexed_getter(i, v);
                 exlib::string str = v.string();
+                t_o = new NObject();
                 t_o->add("type", "NS");
                 t_o->add("value", str);
                 pThis->m_retVal->append(t_o);
@@ -1470,6 +1484,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             for (int32_t i = 0; i < len; i++) {
                 pThis->m_retValCname->_indexed_getter(i, v);
                 exlib::string str = v.string();
+                t_o = new NObject();
                 t_o->add("type", "CNAME");
                 t_o->add("value", str);
                 pThis->m_retVal->append(t_o);
@@ -1479,6 +1494,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             for (int32_t i = 0; i < len; i++) {
                 pThis->m_retValPtr->_indexed_getter(i, v);
                 exlib::string str = v.string();
+                t_o = new NObject();
                 t_o->add("type", "PTR");
                 t_o->add("value", str);
                 pThis->m_retVal->append(t_o);
@@ -1492,18 +1508,22 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
                 pThis->m_retVal->append(t_o);
             }
 
-            // pThis->m_retValSoa->get_length(len);
-            // for (int32_t i = 0; i < len; i++) {
-            //     pThis->m_retValSoa->_indexed_getter(i, v);
-            //     exlib::string str = v.string();
-            //     t_o->add("type", "SRV");
-            //     t_o->add("value", str);
-            //     pThis->m_retVal->append(t_o);
-            // }
+            if (pThis->m_retValSoa) {
+                pThis->m_retValSoa->add("type", "SOA");
+                pThis->m_retVal->append(pThis->m_retValSoa);
+            }
+
             return pThis->done();
         }
 
+        int32_t error(int32_t v)
+        {
+            m_error = true;
+            return 0;
+        }
+
     public:
+        bool m_error;
         obj_ptr<DnsClient> m_dc;
         exlib::string m_host;
         obj_ptr<NArray> m_retVal;
@@ -1520,7 +1540,7 @@ result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, Asyn
     };
 
     if (ac->isSync())
-        return CHECK_ERROR(CALL_E_NOASYNC);
+        return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
     return (new asyncResolveAny(this, host, retVal, ac))->post(0);
