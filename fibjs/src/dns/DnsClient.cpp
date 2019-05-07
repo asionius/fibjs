@@ -29,70 +29,6 @@ public:
 
 static AresChannel s_aresChannel;
 
-class asyncDNSQuery : public exlib::Task_base {
-public:
-    asyncDNSQuery(AsyncEvent* ac, exlib::Locker& locker)
-        : m_ac(ac)
-        , m_locker(locker)
-    {
-    }
-    virtual ~asyncDNSQuery()
-    {
-    }
-
-public:
-    virtual void resume()
-    {
-        process2();
-    }
-
-public:
-    result_t call()
-    {
-        if (m_locker.lock(this)) {
-            result_t hr = process();
-            if (hr != CALL_E_PENDDING) {
-                m_locker.unlock(this);
-                delete this;
-
-                return hr;
-            }
-        }
-
-        return CALL_E_PENDDING;
-    }
-
-    virtual int32_t process()
-    {
-        return 0;
-    }
-
-    virtual int32_t process2()
-    {
-        return 0;
-    }
-
-    virtual void proc()
-    {
-        ready(process());
-    }
-
-    void ready(int32_t v)
-    {
-        m_locker.unlock(this);
-        m_ac->apost(v);
-        delete this;
-    }
-    void onready()
-    {
-        proc();
-    }
-
-public:
-    AsyncEvent* m_ac;
-    exlib::Locker& m_locker;
-};
-
 static exlib::string AddressToString(const void* vaddr, int len)
 {
     const uint8_t* addr = (const uint8_t*)vaddr;
@@ -296,10 +232,10 @@ result_t DnsClient::resolve6(exlib::string host, v8::Local<v8::Object> options, 
 
 result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolve4 : public asyncDNSQuery {
+    class asyncResolve4 : public AsyncState {
     public:
-        asyncResolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_ttl(ttl)
             , m_cbAsync(true)
@@ -307,40 +243,30 @@ result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retV
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_a, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolve4* pThis = (asyncResolve4*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_a, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_a, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolve4* pThis = (asyncResolve4*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -353,18 +279,16 @@ result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retV
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_a_reply(abuf, alen, &host, (ares_addrttl*)addrttls, &naddrttls);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
             for (uint32_t i = 0; host->h_addr_list[i] != nullptr; ++i) {
@@ -378,9 +302,9 @@ result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retV
                 }
             }
             ares_free_hostent(host);
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -396,15 +320,15 @@ result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retV
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolve4(host, ttl, retVal, ac, m_lockRead))->call();
+    return (new asyncResolve4(host, ttl, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolve6 : public asyncDNSQuery {
+    class asyncResolve6 : public AsyncState {
     public:
-        asyncResolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_ttl(ttl)
             , m_cbAsync(true)
@@ -412,40 +336,30 @@ result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retV
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_aaaa, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolve6* pThis = (asyncResolve6*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_aaaa, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_aaaa, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolve6* pThis = (asyncResolve6*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -458,18 +372,16 @@ result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retV
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_aaaa_reply(abuf, alen, &host, (ares_addr6ttl*)addrttls, &naddrttls);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
             for (uint32_t i = 0; host->h_addr_list[i] != nullptr; ++i) {
@@ -483,9 +395,9 @@ result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retV
                 }
             }
             ares_free_hostent(host);
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -501,55 +413,45 @@ result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retV
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolve6(host, ttl, retVal, ac, m_lockRead))->call();
+    return (new asyncResolve6(host, ttl, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolveCname(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolveCname : public asyncDNSQuery {
+    class asyncResolveCname : public AsyncState {
     public:
-        asyncResolveCname(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolveCname(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_cname, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolveCname* pThis = (asyncResolveCname*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_cname, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_cname, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolveCname* pThis = (asyncResolveCname*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -562,26 +464,24 @@ result_t DnsClient::resolveCname(exlib::string host, obj_ptr<NArray>& retVal, As
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_a_reply(abuf, alen, &host, (ares_addrttl*)addrttls, &naddrttls);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             pThis->m_retVal->append(host->h_name);
             ares_free_hostent(host);
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -596,12 +496,12 @@ result_t DnsClient::resolveCname(exlib::string host, obj_ptr<NArray>& retVal, As
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolveCname(host, retVal, ac, m_lockRead))->call();
+    return (new asyncResolveCname(host, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolveNaptr : public asyncDNSQuery {
+    class asyncResolveNaptr : public AsyncState {
     public:
         class ResolveNaptrResult : public NObject {
         public:
@@ -617,48 +517,38 @@ result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, As
         };
 
     public:
-        asyncResolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_naptr, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolveNaptr* pThis = (asyncResolveNaptr*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_naptr, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_naptr, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolveNaptr* pThis = (asyncResolveNaptr*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -669,18 +559,16 @@ result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, As
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_naptr_reply(abuf, alen, &naptr_start);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
@@ -688,10 +576,9 @@ result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, As
                 pThis->m_retVal->append(new ResolveNaptrResult(current));
             }
             ares_free_data(naptr_start);
-
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -706,55 +593,45 @@ result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, As
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolveNaptr(host, retVal, ac, m_lockRead))->call();
+    return (new asyncResolveNaptr(host, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolveNs(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolveNs : public asyncDNSQuery {
+    class asyncResolveNs : public AsyncState {
     public:
-        asyncResolveNs(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolveNs(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_ns, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolveNs* pThis = (asyncResolveNs*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_ns, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_ns, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolveNs* pThis = (asyncResolveNs*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -765,18 +642,16 @@ result_t DnsClient::resolveNs(exlib::string host, obj_ptr<NArray>& retVal, Async
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_ns_reply(abuf, alen, &host);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
@@ -784,9 +659,9 @@ result_t DnsClient::resolveNs(exlib::string host, obj_ptr<NArray>& retVal, Async
                 pThis->m_retVal->append(host->h_aliases[i]);
             }
             ares_free_hostent(host);
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -801,55 +676,45 @@ result_t DnsClient::resolveNs(exlib::string host, obj_ptr<NArray>& retVal, Async
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolveNs(host, retVal, ac, m_lockRead))->call();
+    return (new asyncResolveNs(host, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolvePtr : public asyncDNSQuery {
+    class asyncResolvePtr : public AsyncState {
     public:
-        asyncResolvePtr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolvePtr(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_ptr, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolvePtr* pThis = (asyncResolvePtr*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_ptr, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_ptr, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolvePtr* pThis = (asyncResolvePtr*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -860,18 +725,16 @@ result_t DnsClient::resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_ptr_reply(abuf, alen, NULL, 0, AF_INET, &host);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
@@ -879,9 +742,9 @@ result_t DnsClient::resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, Asyn
                 pThis->m_retVal->append(host->h_aliases[i]);
             }
             ares_free_hostent(host);
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -896,55 +759,45 @@ result_t DnsClient::resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolvePtr(host, retVal, ac, m_lockRead))->call();
+    return (new asyncResolvePtr(host, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, AsyncEvent* ac)
 {
-    class asyncResolveSoa : public asyncDNSQuery {
+    class asyncResolveSoa : public AsyncState {
     public:
-        asyncResolveSoa(exlib::string host, obj_ptr<NObject>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolveSoa(exlib::string host, obj_ptr<NObject>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_soa, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolveSoa* pThis = (asyncResolveSoa*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_soa, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_soa, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolveSoa* pThis = (asyncResolveSoa*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -955,18 +808,16 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_soa_reply(abuf, alen, &soa_out);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
@@ -979,10 +830,9 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
             pThis->m_retVal->add("minttl", (int)soa_out->minttl);
 
             ares_free_data(soa_out);
-
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -997,55 +847,45 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NObject();
-    return (new asyncResolveSoa(host, retVal, ac, m_lockRead))->call();
+    return (new asyncResolveSoa(host, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolveTxt : public asyncDNSQuery {
+    class asyncResolveTxt : public AsyncState {
     public:
-        asyncResolveTxt(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolveTxt(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_txt, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolveTxt* pThis = (asyncResolveTxt*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_txt, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_txt, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolveTxt* pThis = (asyncResolveTxt*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -1056,18 +896,16 @@ result_t DnsClient::resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_txt_reply_ext(abuf, alen, &txt_out);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
@@ -1091,9 +929,9 @@ result_t DnsClient::resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, Asyn
                 pThis->m_retVal->append(txt_result);
             }
             ares_free_data(txt_out);
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -1108,12 +946,12 @@ result_t DnsClient::resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolveTxt(host, retVal, ac, m_lockRead))->call();
+    return (new asyncResolveTxt(host, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolveSrv : public asyncDNSQuery {
+    class asyncResolveSrv : public AsyncState {
     public:
         class ResolveSrvResult : public NObject {
         public:
@@ -1127,48 +965,38 @@ result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         };
 
     public:
-        asyncResolveSrv(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolveSrv(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_srv, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolveSrv* pThis = (asyncResolveSrv*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_srv, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_srv, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolveSrv* pThis = (asyncResolveSrv*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -1179,18 +1007,16 @@ result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, Asyn
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_srv_reply(abuf, alen, &srv_start);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
@@ -1198,10 +1024,9 @@ result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, Asyn
                 pThis->m_retVal->append(new ResolveSrvResult(current));
             }
             ares_free_data(srv_start);
-
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -1216,12 +1041,12 @@ result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, Asyn
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolveSrv(host, retVal, ac, m_lockRead))->call();
+    return (new asyncResolveSrv(host, retVal, ac))->post(0);
 }
 
 result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
-    class asyncResolveMx : public asyncDNSQuery {
+    class asyncResolveMx : public AsyncState {
     public:
         class ResolveMxResult : public NObject {
         public:
@@ -1233,48 +1058,38 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
         };
 
     public:
-        asyncResolveMx(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac, exlib::Locker& locker)
-            : asyncDNSQuery(ac, locker)
+        asyncResolveMx(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
+            : AsyncState(ac)
             , m_errorno(0)
             , m_cbAsync(true)
             , m_cbSync(true)
             , m_host(host)
             , m_retVal(retVal)
         {
+            set(process);
         }
 
-        virtual result_t process()
+        static result_t process(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_mx, callback, this);
-            if (!m_cbAsync) {
-                if (m_errorno != 0)
-                    return CHECK_ERROR(Runtime::setError(ares_strerror(m_errorno)));
-                return 0;
-            }
+            asyncResolveMx* pThis = (asyncResolveMx*)pState;
 
-            m_cbSync = false;
+            pThis->set(end);
+            ares_query(s_aresChannel.m_channel, pThis->m_host.c_str(), ns_c_in, ns_t_mx, callback, pThis);
             s_aresChannel.m_sem.post();
+
+            if (!pThis->m_cbAsync)
+                return 0;
+
+            pThis->m_cbSync = false;
             return CHECK_ERROR(CALL_E_PENDDING);
         }
-
-        virtual result_t process2()
+        static int32_t end(AsyncState* pState, int32_t n)
         {
-            ares_query(s_aresChannel.m_channel, m_host.c_str(), ns_c_in, ns_t_mx, callback, this);
-            if (!m_cbAsync)
-                onready();
-
-            m_cbSync = false;
-            s_aresChannel.m_sem.post();
-            return CALL_E_PENDDING;
-        }
-
-        virtual void proc()
-        {
-            if (m_errorno != 0)
-                ready(Runtime::setError(ares_strerror(m_errorno)));
-            else {
-                ready(0);
-            }
+            asyncResolveMx* pThis = (asyncResolveMx*)pState;
+            if (pThis->m_errorno != 0)
+                return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
+            else
+                return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
@@ -1285,18 +1100,16 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
             pThis->m_cbAsync = false;
             if (status != ARES_SUCCESS) {
                 pThis->m_errorno = status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
             int rs_status = ares_parse_mx_reply(abuf, alen, &mx_reply);
             if (rs_status != ARES_SUCCESS) {
                 pThis->m_errorno = rs_status;
-                if (pThis->m_cbSync)
-                    return;
-                pThis->onready();
+                if (!pThis->m_cbSync)
+                    return pThis->apost(0);
                 return;
             }
 
@@ -1304,10 +1117,9 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
                 pThis->m_retVal->append(new ResolveMxResult(current));
             }
             ares_free_data(mx_reply);
-
-            if (pThis->m_cbSync)
-                return;
-            pThis->onready();
+            if (!pThis->m_cbSync)
+                return pThis->apost(0);
+            return;
         }
 
     public:
@@ -1322,7 +1134,7 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
         return CHECK_ERROR(CALL_E_NOSYNC);
 
     retVal = new NArray();
-    return (new asyncResolveMx(host, retVal, ac, m_lockRead))->call();
+    return (new asyncResolveMx(host, retVal, ac))->post(0);
 }
 result_t DnsClient::resolveAny(exlib::string host, obj_ptr<NArray>& retVal, AsyncEvent* ac)
 {
