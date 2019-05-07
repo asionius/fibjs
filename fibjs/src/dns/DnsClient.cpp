@@ -73,6 +73,7 @@ public:
         }
         res = ares_init(&s_aresChannel.m_channel);
         if (res != ARES_SUCCESS) {
+            ares_library_cleanup();
             printf("ares_init failed: %d\n", s);
             exit(-1);
         }
@@ -98,6 +99,8 @@ public:
                 tvp = ares_timeout(s_aresChannel.m_channel, &tv1, &tv);
                 select(nfds, &m_readers, &m_writers, NULL, tvp);
                 ares_process(s_aresChannel.m_channel, &m_readers, &m_writers);
+                // handle possible timeout without any socket event
+                ares_process(s_aresChannel.m_channel, NULL, NULL);
             }
         }
     }
@@ -263,14 +266,15 @@ result_t DnsClient::resolve4(exlib::string host, bool ttl, obj_ptr<NArray>& retV
         static int32_t end(AsyncState* pState, int32_t n)
         {
             asyncResolve4* pThis = (asyncResolve4*)pState;
-            if (pThis->m_errorno != 0)
+            if (pThis->m_errorno != 0) {
                 return pThis->done(CHECK_ERROR(Runtime::setError(ares_strerror(pThis->m_errorno))));
-            else
+            } else
                 return pThis->done(0);
         }
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback async4\n");
             asyncResolve4* pThis = (asyncResolve4*)arg;
             struct hostent* host;
             struct ares_addrttl addrttls[256];
@@ -364,6 +368,7 @@ result_t DnsClient::resolve6(exlib::string host, bool ttl, obj_ptr<NArray>& retV
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback async6\n");
             asyncResolve6* pThis = (asyncResolve6*)arg;
             struct hostent* host;
             struct ares_addr6ttl addrttls[256];
@@ -456,6 +461,7 @@ result_t DnsClient::resolveCname(exlib::string host, obj_ptr<NArray>& retVal, As
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback asyncCname\n");
             asyncResolveCname* pThis = (asyncResolveCname*)arg;
             struct hostent* host;
             struct ares_addrttl addrttls[256];
@@ -553,6 +559,7 @@ result_t DnsClient::resolveNaptr(exlib::string host, obj_ptr<NArray>& retVal, As
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback asyncNaptr\n");
             asyncResolveNaptr* pThis = (asyncResolveNaptr*)arg;
             struct ares_naptr_reply* naptr_start;
 
@@ -636,6 +643,7 @@ result_t DnsClient::resolveNs(exlib::string host, obj_ptr<NArray>& retVal, Async
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback asyncNs\n");
             asyncResolveNs* pThis = (asyncResolveNs*)arg;
             struct hostent* host;
 
@@ -719,6 +727,7 @@ result_t DnsClient::resolvePtr(exlib::string host, obj_ptr<NArray>& retVal, Asyn
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback asyncPtr\n");
             asyncResolvePtr* pThis = (asyncResolvePtr*)arg;
             struct hostent* host;
 
@@ -802,6 +811,7 @@ result_t DnsClient::resolveSoa(exlib::string host, obj_ptr<NObject>& retVal, Asy
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback asyncSoa\n");
             asyncResolveSoa* pThis = (asyncResolveSoa*)arg;
             struct ares_soa_reply* soa_out;
 
@@ -890,6 +900,7 @@ result_t DnsClient::resolveTxt(exlib::string host, obj_ptr<NArray>& retVal, Asyn
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback asyncTxt\n");
             asyncResolveTxt* pThis = (asyncResolveTxt*)arg;
             struct ares_txt_ext* txt_out;
 
@@ -1001,6 +1012,7 @@ result_t DnsClient::resolveSrv(exlib::string host, obj_ptr<NArray>& retVal, Asyn
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback asyncSrv\n");
             asyncResolveSrv* pThis = (asyncResolveSrv*)arg;
             struct ares_srv_reply* srv_start;
 
@@ -1094,6 +1106,7 @@ result_t DnsClient::resolveMx(exlib::string host, obj_ptr<NArray>& retVal, Async
 
         static void callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen)
         {
+            printf("callback asyncMx\n");
             asyncResolveMx* pThis = (asyncResolveMx*)arg;
             struct ares_mx_reply* mx_reply = nullptr;
 
